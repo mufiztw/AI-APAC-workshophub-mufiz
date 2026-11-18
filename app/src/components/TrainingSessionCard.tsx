@@ -1,8 +1,10 @@
-import type { TrainingSession } from '../types'
+import { FormEvent, useState } from 'react'
+import type { RegistrationRequest, TrainingSession } from '../types'
 import './TrainingSessionCard.css'
 
 interface Props {
   session: TrainingSession
+  onRegister: (input: RegistrationRequest) => Promise<void>
 }
 
 function formatDate(dateStr: string): string {
@@ -30,9 +32,31 @@ function deliveryModeLabel(mode: string): string {
   return labels[mode] ?? mode
 }
 
-function TrainingSessionCard({ session }: Props) {
+function TrainingSessionCard({ session, onRegister }: Props) {
   const spotsLeft = session.capacity - session.registered
   const isFull = spotsLeft <= 0
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [confirmation, setConfirmation] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSubmitting(true)
+    setConfirmation(null)
+    setErrorMessage(null)
+    try {
+      await onRegister({ name, email })
+      setConfirmation(`You are registered for ${session.title}.`)
+      setName('')
+      setEmail('')
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Registration failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <article className={`session-card ${isFull ? 'session-card--full' : ''}`}>
@@ -72,6 +96,45 @@ function TrainingSessionCard({ session }: Props) {
           </span>
         </div>
       </div>
+
+      <form className="registration-form" onSubmit={handleSubmit}>
+        <label className="registration-form__field">
+          Name
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={isFull}
+            required
+          />
+        </label>
+        <label className="registration-form__field">
+          Email
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={isFull}
+            required
+          />
+        </label>
+        <button type="submit" className="registration-form__button" disabled={isFull || submitting}>
+          Register
+        </button>
+        {confirmation && (
+          <p
+            className="registration-form__message registration-form__message--success"
+            role="status"
+          >
+            {confirmation}
+          </p>
+        )}
+        {errorMessage && (
+          <p className="registration-form__message registration-form__message--error" role="alert">
+            {errorMessage}
+          </p>
+        )}
+      </form>
     </article>
   )
 }
