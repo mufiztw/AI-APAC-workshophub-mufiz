@@ -11,3 +11,18 @@ export interface TrainingSession {
   createdAt: string
   updatedAt: string
 }
+
+export interface RegistrationRequest {
+  name: string
+  email: string
+}
+
+export interface RegistrationResponse {
+  id: number
+  sessionId: number
+  name: string
+  email: string
+  createdAt: string
+  registered: number
+  capacity: number
+}
