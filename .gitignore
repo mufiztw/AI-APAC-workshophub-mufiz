@@ -1,2 +1,4 @@
 .env
 reference.sh
+node_modules/
+dist/
