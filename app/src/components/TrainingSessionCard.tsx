@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type {
   CancelResponse,
   RegistrationLookup,
@@ -168,7 +169,9 @@ function TrainingSessionCard({ session, onRegister, onCancel, onLookup }: Props)
         {isFull && <span className="session-badge session-badge--full">Full</span>}
       </div>
 
-      <h3 className="session-card__title">{session.title}</h3>
+      <h3 className="session-card__title">
+        <Link to={`/sessions/${session.id}`}>{session.title}</Link>
+      </h3>
       <p className="session-card__description">{session.description}</p>
 
       <div className="session-card__meta">

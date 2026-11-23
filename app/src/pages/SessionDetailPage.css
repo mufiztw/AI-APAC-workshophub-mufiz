@@ -1,0 +1,64 @@
+.session-detail {
+  padding: 0 1rem;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.session-detail__back {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--color-text-muted);
+}
+
+.session-detail__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.session-detail__meta,
+.session-detail__description {
+  color: var(--color-text-muted);
+  margin: 0.5rem 0;
+}
+
+.session-detail__section {
+  font-size: 1.2rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.roster-group {
+  margin-bottom: 1.25rem;
+}
+
+.roster-group__heading {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.roster-group__empty {
+  color: var(--color-text-muted);
+}
+
+.roster-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.roster-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.roster-entry__name {
+  font-weight: 600;
+}
+
+.roster-entry__email,
+.roster-entry__date {
+  color: var(--color-text-muted);
+}

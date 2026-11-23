@@ -1,8 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TrainingSession } from '../types'
 import TrainingSessionsPage from './TrainingSessionsPage'
+
+// Cards and pages render router links, so every render is wrapped in a MemoryRouter.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: MemoryRouter })
+}
 
 const session: TrainingSession = {
   id: 5,

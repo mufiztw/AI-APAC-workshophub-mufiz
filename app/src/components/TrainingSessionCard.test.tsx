@@ -1,4 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -8,6 +10,11 @@ import type {
   TrainingSession,
 } from '../types'
 import TrainingSessionCard from './TrainingSessionCard'
+
+// Cards and pages render router links, so every render is wrapped in a MemoryRouter.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: MemoryRouter })
+}
 
 const session: TrainingSession = {
   id: 1,
@@ -616,5 +623,21 @@ describe('TrainingSessionCard remembered registration', () => {
     )
     expect(screen.queryByText(/promot/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/99/)).not.toBeInTheDocument()
+  })
+})
+
+describe('TrainingSessionCard title link', () => {
+  it('links the session title to the session detail page', () => {
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
+
+    const link = screen.getByRole('link', { name: session.title })
+    expect(link).toHaveAttribute('href', `/sessions/${session.id}`)
   })
 })
