@@ -33,6 +33,14 @@ export interface RegistrationResponse {
 
 export interface CancelResponse {
   status: 'cancelled'
+  promotedRegistrationId: number | null
   registered: number
   capacity: number
+}
+
+export interface RegistrationLookup {
+  id: number
+  sessionId: number
+  status: RegistrationStatus
+  position?: number
 }

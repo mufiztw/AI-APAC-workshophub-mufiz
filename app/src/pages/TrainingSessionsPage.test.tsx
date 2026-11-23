@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TrainingSession } from '../types'
 import TrainingSessionsPage from './TrainingSessionsPage'
 
@@ -40,6 +40,34 @@ async function register(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/email/i), 'ada@example.com')
   await user.click(screen.getByRole('button', { name: /register/i }))
 }
+
+// Node's experimental localStorage can shadow jsdom's and be undefined, so tests install
+// an in-memory Storage to stay independent of the runtime.
+function installMemoryStorage(): Storage {
+  const data = new Map<string, string>()
+  const storage: Storage = {
+    get length() {
+      return data.size
+    },
+    clear: () => data.clear(),
+    getItem: (key) => data.get(key) ?? null,
+    key: (index) => Array.from(data.keys())[index] ?? null,
+    removeItem: (key) => {
+      data.delete(key)
+    },
+    setItem: (key, value) => {
+      data.set(key, String(value))
+    },
+  }
+  for (const target of [window, globalThis]) {
+    Object.defineProperty(target, 'localStorage', { value: storage, configurable: true })
+  }
+  return storage
+}
+
+beforeEach(() => {
+  installMemoryStorage()
+})
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -157,7 +185,12 @@ describe('TrainingSessionsPage cancellation', () => {
   it('sends DELETE to the cancel endpoint and updates the count from the response', async () => {
     const user = userEvent.setup()
     const fetchMock = mockFetchWithDelete(
-      jsonResponse(200, { status: 'cancelled', registered: 4, capacity: 10 })
+      jsonResponse(200, {
+        status: 'cancelled',
+        promotedRegistrationId: 8,
+        registered: 4,
+        capacity: 10,
+      })
     )
     render(<TrainingSessionsPage />)
 
@@ -188,5 +221,55 @@ describe('TrainingSessionsPage cancellation', () => {
     await registerAndCancel(user)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cancellation failed: 500')
+  })
+})
+
+describe('TrainingSessionsPage registration lookup', () => {
+  function mockFetchWithLookup(lookupResponse: Response) {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === undefined && String(input).includes('/registrations/')) {
+        return Promise.resolve(lookupResponse)
+      }
+      return Promise.resolve(jsonResponse(200, [session]))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('requests the stored registration and shows its status', async () => {
+    window.localStorage.setItem('workshophub.registration.5', '9')
+    const fetchMock = mockFetchWithLookup(
+      jsonResponse(200, { id: 9, sessionId: 5, status: 'waitlisted', position: 2 })
+    )
+    render(<TrainingSessionsPage />)
+
+    expect(
+      await screen.findByText('Your registration: Waitlisted (position 2)')
+    ).toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes('/registrations/9'))
+    expect(call?.[0]).toBe('/api/training-sessions/5/registrations/9')
+  })
+
+  it('clears the stored id when the lookup returns 404', async () => {
+    window.localStorage.setItem('workshophub.registration.5', '9')
+    mockFetchWithLookup(jsonResponse(404, { error: 'Registration not found' }))
+    render(<TrainingSessionsPage />)
+
+    await screen.findByText(session.title)
+    await waitFor(() =>
+      expect(window.localStorage.getItem('workshophub.registration.5')).toBeNull()
+    )
+    expect(screen.queryByText(/Your registration:/)).not.toBeInTheDocument()
+  })
+
+  it('treats a non-JSON failure as a rejected lookup and clears the stored id', async () => {
+    window.localStorage.setItem('workshophub.registration.5', '9')
+    mockFetchWithLookup(new Response('boom', { status: 500 }))
+    render(<TrainingSessionsPage />)
+
+    await screen.findByText(session.title)
+    await waitFor(() =>
+      expect(window.localStorage.getItem('workshophub.registration.5')).toBeNull()
+    )
   })
 })

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type {
   CancelResponse,
+  RegistrationLookup,
   RegistrationRequest,
   RegistrationResponse,
   TrainingSession,
@@ -82,6 +83,20 @@ function TrainingSessionsPage() {
     return result
   }
 
+  async function handleLookup(
+    sessionId: number,
+    registrationId: number
+  ): Promise<RegistrationLookup> {
+    const res = await fetch(
+      `${API_BASE}/api/training-sessions/${sessionId}/registrations/${registrationId}`
+    )
+    if (!res.ok) {
+      const body: unknown = await res.json().catch(() => null)
+      throw new Error(errorMessageFrom(body) ?? `Lookup failed: ${res.status}`)
+    }
+    return res.json()
+  }
+
   if (loading) {
     return <div className="page-state">Loading training sessions...</div>
   }
@@ -112,6 +127,7 @@ function TrainingSessionsPage() {
             session={session}
             onRegister={(input) => handleRegister(session.id, input)}
             onCancel={(registrationId) => handleCancel(session.id, registrationId)}
+            onLookup={(registrationId) => handleLookup(session.id, registrationId)}
           />
         ))}
       </div>

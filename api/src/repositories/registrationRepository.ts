@@ -92,11 +92,36 @@ export type CancelRegistrationResult =
   | {
       status: 'cancelled'
       previousStatus: string
+      promotedRegistrationId: number | null
       registered: number
       capacity: number
     }
   | { status: 'not_found' }
   | { status: 'already_cancelled' }
+
+// Join order (createdAt, then id) matches the derived waitlist position. The conditional
+// update skips a candidate that a competing change already took.
+async function promoteFirstWaitlisted(
+  tx: Prisma.TransactionClient,
+  sessionId: number
+): Promise<number | null> {
+  for (;;) {
+    const candidate = await tx.registration.findFirst({
+      where: { sessionId, status: 'waitlisted' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    if (!candidate) {
+      return null
+    }
+    const promoted = await tx.registration.updateMany({
+      where: { id: candidate.id, status: 'waitlisted' },
+      data: { status: 'confirmed' },
+    })
+    if (promoted.count === 1) {
+      return candidate.id
+    }
+  }
+}
 
 async function cancelAndReleaseSeat(
   tx: Prisma.TransactionClient,
@@ -123,11 +148,17 @@ async function cancelAndReleaseSeat(
     return { status: 'already_cancelled' }
   }
 
+  let promotedRegistrationId: number | null = null
   if (registration.status === 'confirmed') {
-    await tx.$executeRaw`
-      UPDATE training_sessions
-      SET registered = registered - 1
-      WHERE id = ${sessionId} AND registered > 0`
+    // Promotion runs in the cancellation transaction so the freed seat is never
+    // visible to a newcomer while someone is waiting.
+    promotedRegistrationId = await promoteFirstWaitlisted(tx, sessionId)
+    if (promotedRegistrationId === null) {
+      await tx.$executeRaw`
+        UPDATE training_sessions
+        SET registered = registered - 1
+        WHERE id = ${sessionId} AND registered > 0`
+    }
   }
 
   const session = await tx.trainingSession.findUnique({
@@ -141,6 +172,7 @@ async function cancelAndReleaseSeat(
   return {
     status: 'cancelled',
     previousStatus: registration.status,
+    promotedRegistrationId,
     registered: session.registered,
     capacity: session.capacity,
   }
@@ -157,4 +189,27 @@ export async function cancelRegistration(
     maxWait: TRANSACTION_MAX_WAIT_MS,
     timeout: TRANSACTION_TIMEOUT_MS,
   })
+}
+
+export type RegistrationLookupResult =
+  | { status: 'found'; registration: Registration; position?: number }
+  | { status: 'not_found' }
+
+export async function getRegistration(
+  sessionId: number,
+  registrationId: number
+): Promise<RegistrationLookupResult> {
+  const registration = await prisma.registration.findFirst({
+    where: { id: registrationId, sessionId },
+  })
+  if (!registration) {
+    return { status: 'not_found' }
+  }
+  if (registration.status !== 'waitlisted') {
+    return { status: 'found', registration }
+  }
+  const position = await prisma.registration.count({
+    where: { sessionId, status: 'waitlisted', id: { lte: registration.id } },
+  })
+  return { status: 'found', registration, position }
 }

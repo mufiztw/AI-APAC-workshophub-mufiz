@@ -8,9 +8,10 @@ import {
 import {
   cancelRegistration as cancelRegistrationInRepository,
   createRegistration,
+  getRegistration as getRegistrationFromRepository,
   RegistrationInput,
 } from '../repositories/registrationRepository'
-import { onSeatFreed } from './waitlistPromotion'
+import { onRegistrationPromoted } from './waitlistPromotion'
 
 export type RegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled'
 
@@ -22,8 +23,16 @@ export type WaitlistResult = RegistrationResult & { position: number }
 
 export interface CancelResponse {
   status: 'cancelled'
+  promotedRegistrationId: number | null
   registered: number
   capacity: number
+}
+
+export interface RegistrationLookup {
+  id: number
+  sessionId: number
+  status: RegistrationStatus
+  position?: number
 }
 
 const MAX_NAME_LENGTH = 100
@@ -94,9 +103,42 @@ export async function cancelRegistration(
       throw new RegistrationAlreadyCancelledError()
     case 'cancelled':
       // After the commit, so a future promotion failure cannot undo a valid cancellation.
-      if (result.previousStatus === 'confirmed') {
-        await onSeatFreed(sessionId)
+      if (result.promotedRegistrationId !== null) {
+        await onRegistrationPromoted(sessionId, result.promotedRegistrationId)
       }
-      return { status: 'cancelled', registered: result.registered, capacity: result.capacity }
+      return {
+        status: 'cancelled',
+        promotedRegistrationId: result.promotedRegistrationId,
+        registered: result.registered,
+        capacity: result.capacity,
+      }
   }
+}
+
+export async function getRegistration(
+  sessionId: number,
+  registrationId: number
+): Promise<RegistrationLookup> {
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    throw new ValidationError('session id must be a positive whole number')
+  }
+  if (!Number.isInteger(registrationId) || registrationId <= 0) {
+    throw new ValidationError('registration id must be a positive whole number')
+  }
+
+  const result = await getRegistrationFromRepository(sessionId, registrationId)
+  if (result.status === 'not_found') {
+    throw new RegistrationNotFoundError()
+  }
+
+  const { registration, position } = result
+  const lookup: RegistrationLookup = {
+    id: registration.id,
+    sessionId: registration.sessionId,
+    status: registration.status as RegistrationStatus,
+  }
+  if (position !== undefined) {
+    lookup.position = position
+  }
+  return lookup
 }
