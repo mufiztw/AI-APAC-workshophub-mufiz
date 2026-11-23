@@ -30,7 +30,13 @@ check "reset --hard blocked"         2 $G "$(bash_json 'git reset --hard HEAD~1'
 check "git status allowed"           0 $G "$(bash_json 'git status')"
 check "normal commit allowed"        0 $G "$(bash_json 'git commit -m "fix: env handling"')"
 
-P=post-edit-lint.sh
-check "post: non-TS file ignored"    0 $P "$(file_json Edit /repo/README.md)"
+P=post-edit-format.sh
+check "post: empty path ignored"     0 $P '{"tool_input":{}}'
 check "post: missing file ignored"   0 $P "$(file_json Edit /repo/app/src/nope.ts)"
+check "post: unsupported file ok"    0 $P "$(file_json Edit "$(dirname "$0")/post-edit-format.sh")"
+tmp=$(cd ../.. && pwd)/app/src/__hook_test.ts
+printf 'const  a = "x";\n' > "$tmp"
+trap 'rm -f "$tmp"' EXIT
+check "post: formats ts file"        0 $P "$(file_json Write "$tmp")"
+if [ "$(cat "$tmp")" = "const a = 'x'" ]; then echo "PASS  post: file reformatted"; else echo "FAIL  post: file not reformatted: $(cat "$tmp")"; fail=1; fi
 exit $fail
