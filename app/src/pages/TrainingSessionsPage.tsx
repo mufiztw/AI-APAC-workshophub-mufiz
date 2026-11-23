@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import type { RegistrationRequest, RegistrationResponse, TrainingSession } from '../types'
+import type {
+  CancelResponse,
+  RegistrationRequest,
+  RegistrationResponse,
+  TrainingSession,
+} from '../types'
 import TrainingSessionCard from '../components/TrainingSessionCard'
 import './TrainingSessionsPage.css'
 
@@ -59,6 +64,24 @@ function TrainingSessionsPage() {
     return registration
   }
 
+  async function handleCancel(sessionId: number, registrationId: number): Promise<CancelResponse> {
+    const res = await fetch(
+      `${API_BASE}/api/training-sessions/${sessionId}/registrations/${registrationId}`,
+      { method: 'DELETE' }
+    )
+    if (!res.ok) {
+      const body: unknown = await res.json().catch(() => null)
+      throw new Error(errorMessageFrom(body) ?? `Cancellation failed: ${res.status}`)
+    }
+    const result: CancelResponse = await res.json()
+    setSessions((current) =>
+      current.map((s) =>
+        s.id === sessionId ? { ...s, registered: result.registered, capacity: result.capacity } : s
+      )
+    )
+    return result
+  }
+
   if (loading) {
     return <div className="page-state">Loading training sessions...</div>
   }
@@ -88,6 +111,7 @@ function TrainingSessionsPage() {
             key={session.id}
             session={session}
             onRegister={(input) => handleRegister(session.id, input)}
+            onCancel={(registrationId) => handleCancel(session.id, registrationId)}
           />
         ))}
       </div>

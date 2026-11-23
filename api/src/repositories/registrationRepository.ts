@@ -87,3 +87,74 @@ export async function createRegistration(
     timeout: TRANSACTION_TIMEOUT_MS,
   })
 }
+
+export type CancelRegistrationResult =
+  | {
+      status: 'cancelled'
+      previousStatus: string
+      registered: number
+      capacity: number
+    }
+  | { status: 'not_found' }
+  | { status: 'already_cancelled' }
+
+async function cancelAndReleaseSeat(
+  tx: Prisma.TransactionClient,
+  sessionId: number,
+  registrationId: number
+): Promise<CancelRegistrationResult> {
+  const registration = await tx.registration.findFirst({
+    where: { id: registrationId, sessionId },
+  })
+  if (!registration) {
+    return { status: 'not_found' }
+  }
+  if (registration.status === 'cancelled') {
+    return { status: 'already_cancelled' }
+  }
+
+  // Conditional on the status just read: if a concurrent cancel won, no row changes
+  // and this request must not release a second seat.
+  const updated = await tx.registration.updateMany({
+    where: { id: registrationId, status: registration.status },
+    data: { status: 'cancelled' },
+  })
+  if (updated.count === 0) {
+    return { status: 'already_cancelled' }
+  }
+
+  if (registration.status === 'confirmed') {
+    await tx.$executeRaw`
+      UPDATE training_sessions
+      SET registered = registered - 1
+      WHERE id = ${sessionId} AND registered > 0`
+  }
+
+  const session = await tx.trainingSession.findUnique({
+    where: { id: sessionId },
+    select: { registered: true, capacity: true },
+  })
+  if (!session) {
+    throw new Error('Session disappeared during cancellation')
+  }
+
+  return {
+    status: 'cancelled',
+    previousStatus: registration.status,
+    registered: session.registered,
+    capacity: session.capacity,
+  }
+}
+
+/**
+ * Soft-cancels a registration and, if it was confirmed, gives its seat back, in one transaction.
+ */
+export async function cancelRegistration(
+  sessionId: number,
+  registrationId: number
+): Promise<CancelRegistrationResult> {
+  return prisma.$transaction((tx) => cancelAndReleaseSeat(tx, sessionId, registrationId), {
+    maxWait: TRANSACTION_MAX_WAIT_MS,
+    timeout: TRANSACTION_TIMEOUT_MS,
+  })
+}

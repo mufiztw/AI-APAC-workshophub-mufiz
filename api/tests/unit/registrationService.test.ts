@@ -151,9 +151,9 @@ describe('registerForSession', () => {
   })
 
   it('validates input identically before waitlisting', async () => {
-    await expect(registerForSession(7, { name: '', email: 'ada@example.com' })).rejects.toBeInstanceOf(
-      ValidationError
-    )
+    await expect(
+      registerForSession(7, { name: '', email: 'ada@example.com' })
+    ).rejects.toBeInstanceOf(ValidationError)
     expect(mockCreate).not.toHaveBeenCalled()
   })
 })

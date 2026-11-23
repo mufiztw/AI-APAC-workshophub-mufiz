@@ -1,10 +1,17 @@
 import { FormEvent, useState } from 'react'
-import type { RegistrationRequest, RegistrationResponse, TrainingSession } from '../types'
+import type {
+  CancelResponse,
+  RegistrationRequest,
+  RegistrationResponse,
+  RegistrationStatus,
+  TrainingSession,
+} from '../types'
 import './TrainingSessionCard.css'
 
 interface Props {
   session: TrainingSession
   onRegister: (input: RegistrationRequest) => Promise<RegistrationResponse>
+  onCancel: (registrationId: number) => Promise<CancelResponse>
 }
 
 function formatDate(dateStr: string): string {
@@ -32,7 +39,7 @@ function deliveryModeLabel(mode: string): string {
   return labels[mode] ?? mode
 }
 
-function TrainingSessionCard({ session, onRegister }: Props) {
+function TrainingSessionCard({ session, onRegister, onCancel }: Props) {
   const spotsLeft = session.capacity - session.registered
   const isFull = spotsLeft <= 0
   const [name, setName] = useState('')
@@ -40,6 +47,11 @@ function TrainingSessionCard({ session, onRegister }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [confirmation, setConfirmation] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [registration, setRegistration] = useState<{
+    id: number
+    status: RegistrationStatus
+  } | null>(null)
+  const [cancelling, setCancelling] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -53,12 +65,34 @@ function TrainingSessionCard({ session, onRegister }: Props) {
           ? `You are on the waitlist for ${session.title} at position ${result.position}. Your place is not confirmed.`
           : `You are registered for ${session.title}.`
       )
+      setRegistration({ id: result.id, status: result.status })
       setName('')
       setEmail('')
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Registration failed')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleCancel() {
+    if (!registration) return
+    if (
+      !window.confirm(`Are you sure you want to cancel your registration for ${session.title}?`)
+    ) {
+      return
+    }
+    setCancelling(true)
+    setConfirmation(null)
+    setErrorMessage(null)
+    try {
+      await onCancel(registration.id)
+      setRegistration({ ...registration, status: 'cancelled' })
+      setConfirmation('Your registration has been cancelled')
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Cancellation failed')
+    } finally {
+      setCancelling(false)
     }
   }
 
@@ -118,6 +152,21 @@ function TrainingSessionCard({ session, onRegister }: Props) {
         <button type="submit" className="registration-form__button" disabled={submitting}>
           {isFull ? 'Join Waitlist' : 'Register'}
         </button>
+        {registration?.status === 'confirmed' && (
+          <button
+            type="button"
+            className="registration-form__button"
+            onClick={handleCancel}
+            disabled={cancelling}
+          >
+            Cancel Registration
+          </button>
+        )}
+        {registration?.status === 'cancelled' && (
+          <button type="button" className="registration-form__button" disabled>
+            Cancelled
+          </button>
+        )}
         {confirmation && (
           <p
             className="registration-form__message registration-form__message--success"
