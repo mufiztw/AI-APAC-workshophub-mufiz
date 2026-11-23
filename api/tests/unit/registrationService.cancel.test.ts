@@ -1,6 +1,9 @@
-import { cancelRegistration } from '../../src/services/registrationService'
-import { cancelRegistration as repoCancel } from '../../src/repositories/registrationRepository'
-import { onSeatFreed } from '../../src/services/waitlistPromotion'
+import { cancelRegistration, getRegistration } from '../../src/services/registrationService'
+import {
+  cancelRegistration as repoCancel,
+  getRegistration as repoGet,
+} from '../../src/repositories/registrationRepository'
+import { onRegistrationPromoted } from '../../src/services/waitlistPromotion'
 import {
   RegistrationAlreadyCancelledError,
   RegistrationNotFoundError,
@@ -10,13 +13,15 @@ import {
 jest.mock('../../src/repositories/registrationRepository', () => ({
   createRegistration: jest.fn(),
   cancelRegistration: jest.fn(),
+  getRegistration: jest.fn(),
 }))
 jest.mock('../../src/services/waitlistPromotion', () => ({
-  onSeatFreed: jest.fn(),
+  onRegistrationPromoted: jest.fn(),
 }))
 
 const mockRepoCancel = repoCancel as jest.Mock
-const mockOnSeatFreed = onSeatFreed as jest.Mock
+const mockOnPromoted = onRegistrationPromoted as jest.Mock
+const mockRepoGet = repoGet as jest.Mock
 
 afterEach(() => {
   jest.resetAllMocks()
@@ -35,15 +40,16 @@ describe('cancelRegistration validation', () => {
   ])('rejects %s with ValidationError before touching the repository', async (_l, sid, rid) => {
     await expect(cancelRegistration(sid, rid)).rejects.toBeInstanceOf(ValidationError)
     expect(mockRepoCancel).not.toHaveBeenCalled()
-    expect(mockOnSeatFreed).not.toHaveBeenCalled()
+    expect(mockOnPromoted).not.toHaveBeenCalled()
   })
 })
 
 describe('cancelRegistration', () => {
-  it('returns the cancel response for a confirmed registration', async () => {
+  it('returns the cancel response with promotedRegistrationId null when nobody was promoted', async () => {
     mockRepoCancel.mockResolvedValue({
       status: 'cancelled',
       previousStatus: 'confirmed',
+      promotedRegistrationId: null,
       registered: 3,
       capacity: 10,
     })
@@ -51,41 +57,87 @@ describe('cancelRegistration', () => {
     const result = await cancelRegistration(7, 12)
 
     expect(mockRepoCancel).toHaveBeenCalledWith(7, 12)
-    expect(result).toEqual({ status: 'cancelled', registered: 3, capacity: 10 })
-  })
-
-  it('calls onSeatFreed once with the session id after a confirmed cancellation', async () => {
-    mockRepoCancel.mockResolvedValue({
+    expect(result).toEqual({
       status: 'cancelled',
-      previousStatus: 'confirmed',
+      promotedRegistrationId: null,
       registered: 3,
       capacity: 10,
     })
-
-    await cancelRegistration(7, 12)
-
-    expect(mockOnSeatFreed).toHaveBeenCalledTimes(1)
-    expect(mockOnSeatFreed).toHaveBeenCalledWith(7)
   })
 
-  it('does not call onSeatFreed for a waitlisted cancellation', async () => {
+  it('returns the promoted registration id in the response', async () => {
     mockRepoCancel.mockResolvedValue({
       status: 'cancelled',
-      previousStatus: 'waitlisted',
+      previousStatus: 'confirmed',
+      promotedRegistrationId: 30,
       registered: 10,
       capacity: 10,
     })
 
     const result = await cancelRegistration(7, 12)
 
-    expect(result).toEqual({ status: 'cancelled', registered: 10, capacity: 10 })
-    expect(mockOnSeatFreed).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      status: 'cancelled',
+      promotedRegistrationId: 30,
+      registered: 10,
+      capacity: 10,
+    })
+  })
+
+  it('calls onRegistrationPromoted once with the session and promoted ids after a promotion', async () => {
+    mockRepoCancel.mockResolvedValue({
+      status: 'cancelled',
+      previousStatus: 'confirmed',
+      promotedRegistrationId: 30,
+      registered: 10,
+      capacity: 10,
+    })
+
+    await cancelRegistration(7, 12)
+
+    expect(mockOnPromoted).toHaveBeenCalledTimes(1)
+    expect(mockOnPromoted).toHaveBeenCalledWith(7, 30)
+  })
+
+  it('does not call onRegistrationPromoted when nobody was promoted', async () => {
+    mockRepoCancel.mockResolvedValue({
+      status: 'cancelled',
+      previousStatus: 'confirmed',
+      promotedRegistrationId: null,
+      registered: 3,
+      capacity: 10,
+    })
+
+    await cancelRegistration(7, 12)
+
+    expect(mockOnPromoted).not.toHaveBeenCalled()
+  })
+
+  it('does not call onRegistrationPromoted for a waitlisted cancellation', async () => {
+    mockRepoCancel.mockResolvedValue({
+      status: 'cancelled',
+      previousStatus: 'waitlisted',
+      promotedRegistrationId: null,
+      registered: 10,
+      capacity: 10,
+    })
+
+    const result = await cancelRegistration(7, 12)
+
+    expect(result).toEqual({
+      status: 'cancelled',
+      promotedRegistrationId: null,
+      registered: 10,
+      capacity: 10,
+    })
+    expect(mockOnPromoted).not.toHaveBeenCalled()
   })
 
   it('does not expose previousStatus in the response', async () => {
     mockRepoCancel.mockResolvedValue({
       status: 'cancelled',
       previousStatus: 'confirmed',
+      promotedRegistrationId: null,
       registered: 3,
       capacity: 10,
     })
@@ -93,27 +145,81 @@ describe('cancelRegistration', () => {
     expect(await cancelRegistration(7, 12)).not.toHaveProperty('previousStatus')
   })
 
-  it('throws RegistrationNotFoundError and skips onSeatFreed on not_found', async () => {
+  it('throws RegistrationNotFoundError and skips the hand-off on not_found', async () => {
     mockRepoCancel.mockResolvedValue({ status: 'not_found' })
 
     await expect(cancelRegistration(7, 12)).rejects.toBeInstanceOf(RegistrationNotFoundError)
-    expect(mockOnSeatFreed).not.toHaveBeenCalled()
+    expect(mockOnPromoted).not.toHaveBeenCalled()
   })
 
-  it('throws RegistrationAlreadyCancelledError and skips onSeatFreed on already_cancelled', async () => {
+  it('throws RegistrationAlreadyCancelledError and skips the hand-off on already_cancelled', async () => {
     mockRepoCancel.mockResolvedValue({ status: 'already_cancelled' })
 
     await expect(cancelRegistration(7, 12)).rejects.toBeInstanceOf(
       RegistrationAlreadyCancelledError
     )
-    expect(mockOnSeatFreed).not.toHaveBeenCalled()
+    expect(mockOnPromoted).not.toHaveBeenCalled()
   })
 
-  it('does not call onSeatFreed when the repository throws', async () => {
+  it('does not call the hand-off when the repository throws', async () => {
     mockRepoCancel.mockRejectedValue(new Error('db down'))
 
     await expect(cancelRegistration(7, 12)).rejects.toThrow('db down')
-    expect(mockOnSeatFreed).not.toHaveBeenCalled()
+    expect(mockOnPromoted).not.toHaveBeenCalled()
+  })
+})
+
+describe('getRegistration validation', () => {
+  it.each([
+    ['zero session id', 0, 1],
+    ['negative session id', -1, 1],
+    ['fractional session id', 1.5, 1],
+    ['NaN session id', Number.NaN, 1],
+    ['zero registration id', 1, 0],
+    ['negative registration id', 1, -3],
+    ['fractional registration id', 1, 2.5],
+    ['NaN registration id', 1, Number.NaN],
+  ])('rejects %s with ValidationError before touching the repository', async (_l, sid, rid) => {
+    await expect(getRegistration(sid, rid)).rejects.toBeInstanceOf(ValidationError)
+    expect(mockRepoGet).not.toHaveBeenCalled()
+  })
+})
+
+describe('getRegistration', () => {
+  const row = {
+    id: 12,
+    sessionId: 7,
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+    status: 'confirmed',
+    createdAt: new Date('2026-07-01T09:00:00Z'),
+  }
+
+  it('returns id, sessionId and status for a confirmed registration, without name or email', async () => {
+    mockRepoGet.mockResolvedValue({ status: 'found', registration: row })
+
+    const result = await getRegistration(7, 12)
+
+    expect(mockRepoGet).toHaveBeenCalledWith(7, 12)
+    expect(result).toEqual({ id: 12, sessionId: 7, status: 'confirmed' })
+  })
+
+  it('includes the position for a waitlisted registration', async () => {
+    mockRepoGet.mockResolvedValue({
+      status: 'found',
+      registration: { ...row, status: 'waitlisted' },
+      position: 2,
+    })
+
+    const result = await getRegistration(7, 12)
+
+    expect(result).toEqual({ id: 12, sessionId: 7, status: 'waitlisted', position: 2 })
+  })
+
+  it('throws RegistrationNotFoundError when the repository reports not_found', async () => {
+    mockRepoGet.mockResolvedValue({ status: 'not_found' })
+
+    await expect(getRegistration(7, 12)).rejects.toBeInstanceOf(RegistrationNotFoundError)
   })
 })
 

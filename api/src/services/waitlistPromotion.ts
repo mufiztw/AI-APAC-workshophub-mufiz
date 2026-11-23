@@ -1,3 +1,6 @@
-// Hand-off point called after a confirmed seat is released.
-// WH-5 will promote the first waitlisted registration here.
-export async function onSeatFreed(_sessionId: number): Promise<void> {}
+// Hand-off point called after a waitlisted registration has been promoted and committed.
+// WH-8 will notify the promoted employee here.
+export async function onRegistrationPromoted(
+  _sessionId: number,
+  _registrationId: number
+): Promise<void> {}

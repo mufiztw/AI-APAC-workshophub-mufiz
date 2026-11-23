@@ -284,7 +284,12 @@ describe('DELETE /api/training-sessions/:id/registrations/:registrationId', () =
     const response = await del(id, created.body.id)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ status: 'cancelled', registered: 0, capacity: 5 })
+    expect(response.body).toEqual({
+      status: 'cancelled',
+      promotedRegistrationId: null,
+      registered: 0,
+      capacity: 5,
+    })
     const row = await prisma.registration.findUniqueOrThrow({ where: { id: created.body.id } })
     expect(row.status).toBe('cancelled')
     expect(await getRegistered(id)).toBe(0)
@@ -351,7 +356,12 @@ describe('DELETE /api/training-sessions/:id/registrations/:registrationId', () =
     const response = await del(id, waitlisted.body.id)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ status: 'cancelled', registered: 1, capacity: 1 })
+    expect(response.body).toEqual({
+      status: 'cancelled',
+      promotedRegistrationId: null,
+      registered: 1,
+      capacity: 1,
+    })
     const row = await prisma.registration.findUniqueOrThrow({ where: { id: waitlisted.body.id } })
     expect(row.status).toBe('cancelled')
     expect(await getRegistered(id)).toBe(1)
@@ -371,12 +381,10 @@ describe('DELETE /api/training-sessions/:id/registrations/:registrationId', () =
     expect(third.body.position).toBe(2)
   })
 
-  it('confirms a new registration after a confirmed cancellation on a full session', async () => {
+  it('confirms a new registration after a confirmed cancellation when nobody is waiting', async () => {
     const id = await createSession(1)
     const holder = await post(id, validBody)
     expect(holder.status).toBe(201)
-    const full = await post(id, { name: 'Grace Hopper', email: 'grace@example.com' })
-    expect(full.status).toBe(202)
 
     const cancelled = await del(id, holder.body.id)
     expect(cancelled.status).toBe(200)
@@ -406,5 +414,227 @@ describe('DELETE /api/training-sessions/:id/registrations/:registrationId', () =
     await Promise.all(Array.from({ length: 5 }, () => del(id, only.body.id)))
 
     expect(await getRegistered(id)).toBe(0)
+  })
+})
+
+function get(id: number | string, registrationId: number | string) {
+  return request(app).get(`/api/training-sessions/${id}/registrations/${registrationId}`)
+}
+
+const grace = { name: 'Grace Hopper', email: 'grace@example.com' }
+const alan = { name: 'Alan Turing', email: 'alan@example.com' }
+const edsger = { name: 'Edsger Dijkstra', email: 'edsger@example.com' }
+
+describe('promotion of the first waitlisted registration on cancellation', () => {
+  it('promotes the earliest waitlisted registration and leaves registered unchanged', async () => {
+    const id = await createSession(1)
+    const holder = await post(id, validBody)
+    const first = await post(id, grace)
+    const second = await post(id, alan)
+    expect(first.status).toBe(202)
+    expect(second.status).toBe(202)
+
+    const response = await del(id, holder.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      status: 'cancelled',
+      promotedRegistrationId: first.body.id,
+      registered: 1,
+      capacity: 1,
+    })
+    const promoted = await prisma.registration.findUniqueOrThrow({ where: { id: first.body.id } })
+    const stillWaiting = await prisma.registration.findUniqueOrThrow({
+      where: { id: second.body.id },
+    })
+    expect(promoted.status).toBe('confirmed')
+    expect(stillWaiting.status).toBe('waitlisted')
+    expect(await getRegistered(id)).toBe(1)
+  })
+
+  it('returns null and drops registered by one when the waitlist is empty', async () => {
+    const id = await createSession(3)
+    const holder = await post(id, validBody)
+    await post(id, grace)
+
+    const response = await del(id, holder.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body.promotedRegistrationId).toBeNull()
+    expect(response.body.registered).toBe(1)
+    expect(await getRegistered(id)).toBe(1)
+  })
+
+  it('promotes nobody and leaves registered unchanged when a waitlisted registration is cancelled', async () => {
+    const id = await createSession(1)
+    await post(id, validBody)
+    const first = await post(id, grace)
+    const second = await post(id, alan)
+
+    const response = await del(id, first.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body.promotedRegistrationId).toBeNull()
+    const other = await prisma.registration.findUniqueOrThrow({ where: { id: second.body.id } })
+    expect(other.status).toBe('waitlisted')
+    expect(await getRegistered(id)).toBe(1)
+  })
+
+  it('moves later waitlist positions up after a promotion', async () => {
+    const id = await createSession(1)
+    const holder = await post(id, validBody)
+    await post(id, grace)
+    await post(id, alan)
+
+    await del(id, holder.body.id)
+    const next = await post(id, edsger)
+
+    expect(next.status).toBe(202)
+    expect(next.body.position).toBe(2)
+  })
+
+  it('skips a cancelled waitlisted registration when promoting', async () => {
+    const id = await createSession(1)
+    const holder = await post(id, validBody)
+    const first = await post(id, grace)
+    const second = await post(id, alan)
+    await del(id, first.body.id)
+
+    const response = await del(id, holder.body.id)
+
+    expect(response.body.promotedRegistrationId).toBe(second.body.id)
+    const row = await prisma.registration.findUniqueOrThrow({ where: { id: first.body.id } })
+    expect(row.status).toBe('cancelled')
+  })
+
+  it('waitlists a brand-new registration on the full session after a promotion', async () => {
+    const id = await createSession(1)
+    const holder = await post(id, validBody)
+    await post(id, grace)
+    await del(id, holder.body.id)
+
+    const newcomer = await post(id, alan)
+
+    expect(newcomer.status).toBe(202)
+    expect(newcomer.body.status).toBe('waitlisted')
+    expect(await getRegistered(id)).toBe(1)
+  })
+
+  it('promotes different people, none twice, and never exceeds capacity under concurrent cancellations', async () => {
+    const id = await createSession(4)
+    const holders = await Promise.all(
+      Array.from({ length: 4 }, (_, i) => post(id, { name: `H ${i}`, email: `h${i}@example.com` }))
+    )
+    const waiting = []
+    for (let i = 0; i < 6; i += 1) {
+      waiting.push(await post(id, { name: `W ${i}`, email: `w${i}@example.com` }))
+    }
+    expect(waiting.every((w) => w.status === 202)).toBe(true)
+
+    const responses = await Promise.all(holders.map((h) => del(id, h.body.id)))
+
+    expect(responses.every((r) => r.status === 200)).toBe(true)
+    const promotedIds = responses.map((r) => r.body.promotedRegistrationId as number)
+    expect(promotedIds.every((p) => typeof p === 'number')).toBe(true)
+    expect(new Set(promotedIds).size).toBe(4)
+    expect([...promotedIds].sort((a, b) => a - b)).toEqual(
+      waiting.slice(0, 4).map((w) => w.body.id as number)
+    )
+    for (const r of responses) {
+      expect(r.body.registered).toBeLessThanOrEqual(r.body.capacity)
+    }
+    expect(await getRegistered(id)).toBe(4)
+    expect(await prisma.registration.count({ where: { sessionId: id, status: 'confirmed' } })).toBe(
+      4
+    )
+    expect(
+      await prisma.registration.count({ where: { sessionId: id, status: 'waitlisted' } })
+    ).toBe(2)
+  })
+})
+
+describe('GET /api/training-sessions/:id/registrations/:registrationId', () => {
+  it('returns 200 with id, sessionId and confirmed status, and no name or email', async () => {
+    const id = await createSession(5)
+    const created = await post(id, validBody)
+
+    const response = await get(id, created.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ id: created.body.id, sessionId: id, status: 'confirmed' })
+    expect(response.body).not.toHaveProperty('name')
+    expect(response.body).not.toHaveProperty('email')
+  })
+
+  it('returns waitlisted with its position', async () => {
+    const id = await createSession(1)
+    await post(id, validBody)
+    await post(id, grace)
+    const third = await post(id, alan)
+
+    const response = await get(id, third.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      id: third.body.id,
+      sessionId: id,
+      status: 'waitlisted',
+      position: 2,
+    })
+  })
+
+  it('returns cancelled status without a position', async () => {
+    const id = await createSession(5)
+    const created = await post(id, validBody)
+    await del(id, created.body.id)
+
+    const response = await get(id, created.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ id: created.body.id, sessionId: id, status: 'cancelled' })
+  })
+
+  it('shows confirmed after the registration was promoted', async () => {
+    const id = await createSession(1)
+    const holder = await post(id, validBody)
+    const waiting = await post(id, grace)
+    await del(id, holder.body.id)
+
+    const response = await get(id, waiting.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body.status).toBe('confirmed')
+    expect(response.body).not.toHaveProperty('position')
+  })
+
+  it('returns 404 Registration not found for an unknown registration id', async () => {
+    const id = await createSession(5)
+    const response = await get(id, 999999)
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ error: 'Registration not found' })
+  })
+
+  it('returns 404 for a registration that belongs to another session', async () => {
+    const a = await createSession(5)
+    const b = await createSession(5)
+    const created = await post(a, validBody)
+
+    const response = await get(b, created.body.id)
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ error: 'Registration not found' })
+  })
+
+  it('returns 400 for a malformed session id', async () => {
+    const response = await get('abc', 1)
+    expect(response.status).toBe(400)
+    expect(response.body).toEqual({ error: 'Invalid session ID' })
+  })
+
+  it('returns 400 for a malformed registration id', async () => {
+    const id = await createSession(5)
+    const response = await get(id, 'abc')
+    expect(response.status).toBe(400)
+    expect(response.body).toEqual({ error: 'Invalid registration ID' })
   })
 })

@@ -1,6 +1,7 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import type {
   CancelResponse,
+  RegistrationLookup,
   RegistrationRequest,
   RegistrationResponse,
   RegistrationStatus,
@@ -12,6 +13,40 @@ interface Props {
   session: TrainingSession
   onRegister: (input: RegistrationRequest) => Promise<RegistrationResponse>
   onCancel: (registrationId: number) => Promise<CancelResponse>
+  onLookup: (registrationId: number) => Promise<RegistrationLookup>
+}
+
+// Storage can be missing or throw (private mode, disabled), so it must never break the card.
+function readStoredId(key: string): number | null {
+  try {
+    const value = window.localStorage.getItem(key)
+    if (value === null) return null
+    const id = Number(value)
+    return Number.isInteger(id) && id > 0 ? id : null
+  } catch {
+    return null
+  }
+}
+
+function storeId(key: string, id: number): void {
+  try {
+    window.localStorage.setItem(key, String(id))
+  } catch {
+    // Remembering the registration is best effort.
+  }
+}
+
+function clearStoredId(key: string): void {
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Nothing to clean up if storage is unavailable.
+  }
+}
+
+function statusLine(status: RegistrationStatus, position: number | undefined): string {
+  if (status === 'waitlisted') return `Your registration: Waitlisted (position ${position})`
+  return `Your registration: ${status === 'confirmed' ? 'Confirmed' : 'Cancelled'}`
 }
 
 function formatDate(dateStr: string): string {
@@ -39,7 +74,7 @@ function deliveryModeLabel(mode: string): string {
   return labels[mode] ?? mode
 }
 
-function TrainingSessionCard({ session, onRegister, onCancel }: Props) {
+function TrainingSessionCard({ session, onRegister, onCancel, onLookup }: Props) {
   const spotsLeft = session.capacity - session.registered
   const isFull = spotsLeft <= 0
   const [name, setName] = useState('')
@@ -51,7 +86,33 @@ function TrainingSessionCard({ session, onRegister, onCancel }: Props) {
     id: number
     status: RegistrationStatus
   } | null>(null)
+  const [position, setPosition] = useState<number | undefined>(undefined)
   const [cancelling, setCancelling] = useState(false)
+  const storageKey = `workshophub.registration.${session.id}`
+
+  // The parent recreates onLookup on every render; keep the latest one in a ref so the
+  // load-time lookup below runs once per session instead of on every render.
+  const onLookupRef = useRef(onLookup)
+  useEffect(() => {
+    onLookupRef.current = onLookup
+  })
+
+  useEffect(() => {
+    const storedId = readStoredId(storageKey)
+    if (storedId === null) return
+    let active = true
+    onLookupRef.current(storedId).then(
+      (found) => {
+        if (!active) return
+        setRegistration({ id: found.id, status: found.status })
+        setPosition(found.position)
+      },
+      () => clearStoredId(storageKey)
+    )
+    return () => {
+      active = false
+    }
+  }, [storageKey])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -66,6 +127,8 @@ function TrainingSessionCard({ session, onRegister, onCancel }: Props) {
           : `You are registered for ${session.title}.`
       )
       setRegistration({ id: result.id, status: result.status })
+      setPosition(result.position)
+      storeId(storageKey, result.id)
       setName('')
       setEmail('')
     } catch (err: unknown) {
@@ -166,6 +229,9 @@ function TrainingSessionCard({ session, onRegister, onCancel }: Props) {
           <button type="button" className="registration-form__button" disabled>
             Cancelled
           </button>
+        )}
+        {registration && (
+          <p className="registration-form__status">{statusLine(registration.status, position)}</p>
         )}
         {confirmation && (
           <p

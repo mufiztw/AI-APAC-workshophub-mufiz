@@ -1,7 +1,12 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { CancelResponse, RegistrationResponse, TrainingSession } from '../types'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  CancelResponse,
+  RegistrationLookup,
+  RegistrationResponse,
+  TrainingSession,
+} from '../types'
 import TrainingSessionCard from './TrainingSessionCard'
 
 const session: TrainingSession = {
@@ -36,6 +41,34 @@ const waitlistedResponse: RegistrationResponse = {
   registered: 10,
 }
 
+// Node's experimental localStorage can shadow jsdom's and be undefined, so tests install
+// an in-memory Storage to stay independent of the runtime.
+function installMemoryStorage(): Storage {
+  const data = new Map<string, string>()
+  const storage: Storage = {
+    get length() {
+      return data.size
+    },
+    clear: () => data.clear(),
+    getItem: (key) => data.get(key) ?? null,
+    key: (index) => Array.from(data.keys())[index] ?? null,
+    removeItem: (key) => {
+      data.delete(key)
+    },
+    setItem: (key, value) => {
+      data.set(key, String(value))
+    },
+  }
+  for (const target of [window, globalThis]) {
+    Object.defineProperty(target, 'localStorage', { value: storage, configurable: true })
+  }
+  return storage
+}
+
+beforeEach(() => {
+  installMemoryStorage()
+})
+
 async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/name/i), 'Ada Lovelace')
   await user.type(screen.getByLabelText(/email/i), 'ada@example.com')
@@ -44,7 +77,14 @@ async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
 
 describe('TrainingSessionCard registration', () => {
   it('shows a form with name, email and an enabled Register button', () => {
-    render(<TrainingSessionCard session={session} onRegister={vi.fn()} onCancel={vi.fn()} />)
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
 
     expect(screen.getByLabelText(/name/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
@@ -57,6 +97,7 @@ describe('TrainingSessionCard registration', () => {
         session={{ ...session, registered: 10 }}
         onRegister={vi.fn()}
         onCancel={vi.fn()}
+        onLookup={vi.fn()}
       />
     )
 
@@ -70,6 +111,7 @@ describe('TrainingSessionCard registration', () => {
         session={{ ...session, registered: 10 }}
         onRegister={vi.fn()}
         onCancel={vi.fn()}
+        onLookup={vi.fn()}
       />
     )
 
@@ -79,7 +121,14 @@ describe('TrainingSessionCard registration', () => {
   })
 
   it('does not show a Full badge when seats remain', () => {
-    render(<TrainingSessionCard session={session} onRegister={vi.fn()} onCancel={vi.fn()} />)
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
 
     expect(screen.queryByText('Full')).not.toBeInTheDocument()
   })
@@ -87,7 +136,14 @@ describe('TrainingSessionCard registration', () => {
   it('calls onRegister with the name and email on submit', async () => {
     const user = userEvent.setup()
     const onRegister = vi.fn().mockResolvedValue(confirmedResponse)
-    render(<TrainingSessionCard session={session} onRegister={onRegister} onCancel={vi.fn()} />)
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={onRegister}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
 
     await fillAndSubmit(user)
 
@@ -101,6 +157,7 @@ describe('TrainingSessionCard registration', () => {
         session={session}
         onRegister={vi.fn().mockResolvedValue(confirmedResponse)}
         onCancel={vi.fn()}
+        onLookup={vi.fn()}
       />
     )
 
@@ -117,6 +174,7 @@ describe('TrainingSessionCard registration', () => {
         session={{ ...session, registered: 10 }}
         onRegister={onRegister}
         onCancel={vi.fn()}
+        onLookup={vi.fn()}
       />
     )
 
@@ -137,6 +195,7 @@ describe('TrainingSessionCard registration', () => {
         session={{ ...session, registered: 10 }}
         onRegister={vi.fn().mockResolvedValue(waitlistedResponse)}
         onCancel={vi.fn()}
+        onLookup={vi.fn()}
       />
     )
 
@@ -153,6 +212,7 @@ describe('TrainingSessionCard registration', () => {
         session={session}
         onRegister={vi.fn().mockResolvedValue(confirmedResponse)}
         onCancel={vi.fn()}
+        onLookup={vi.fn()}
       />
     )
 
@@ -166,7 +226,14 @@ describe('TrainingSessionCard registration', () => {
   it('shows an error message when registration fails', async () => {
     const user = userEvent.setup()
     const onRegister = vi.fn().mockRejectedValue(new Error('Training session is full'))
-    render(<TrainingSessionCard session={session} onRegister={onRegister} onCancel={vi.fn()} />)
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={onRegister}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
 
     await fillAndSubmit(user)
 
@@ -176,7 +243,12 @@ describe('TrainingSessionCard registration', () => {
 
   it('updates the displayed count when the session changes', () => {
     const { rerender } = render(
-      <TrainingSessionCard session={session} onRegister={vi.fn()} onCancel={vi.fn()} />
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
     )
     expect(screen.getByText(/4 \/ 10 registered/)).toBeInTheDocument()
 
@@ -185,6 +257,7 @@ describe('TrainingSessionCard registration', () => {
         session={{ ...session, registered: 5 }}
         onRegister={vi.fn()}
         onCancel={vi.fn()}
+        onLookup={vi.fn()}
       />
     )
 
@@ -193,7 +266,12 @@ describe('TrainingSessionCard registration', () => {
 })
 
 describe('TrainingSessionCard cancellation', () => {
-  const cancelResponse: CancelResponse = { status: 'cancelled', registered: 4, capacity: 10 }
+  const cancelResponse: CancelResponse = {
+    status: 'cancelled',
+    promotedRegistrationId: null,
+    registered: 4,
+    capacity: 10,
+  }
 
   afterEach(() => {
     vi.restoreAllMocks()
@@ -208,6 +286,7 @@ describe('TrainingSessionCard cancellation', () => {
         session={session}
         onRegister={vi.fn().mockResolvedValue(confirmedResponse)}
         onCancel={onCancel}
+        onLookup={vi.fn()}
       />
     )
     await fillAndSubmit(user)
@@ -215,7 +294,14 @@ describe('TrainingSessionCard cancellation', () => {
   }
 
   it('does not show Cancel Registration before registering', () => {
-    render(<TrainingSessionCard session={session} onRegister={vi.fn()} onCancel={vi.fn()} />)
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
 
     expect(screen.queryByRole('button', { name: 'Cancel Registration' })).not.toBeInTheDocument()
   })
@@ -234,6 +320,7 @@ describe('TrainingSessionCard cancellation', () => {
         session={{ ...session, registered: 10 }}
         onRegister={vi.fn().mockResolvedValue(waitlistedResponse)}
         onCancel={vi.fn()}
+        onLookup={vi.fn()}
       />
     )
 
@@ -334,5 +421,200 @@ describe('TrainingSessionCard cancellation', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Registration is already cancelled')
     expect(screen.getByRole('button', { name: 'Cancel Registration' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Cancelled' })).not.toBeInTheDocument()
+  })
+})
+
+describe('TrainingSessionCard remembered registration', () => {
+  const storageKey = `workshophub.registration.${session.id}`
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function lookup(status: RegistrationLookup['status'], position?: number): RegistrationLookup {
+    return { id: 42, sessionId: session.id, status, ...(position ? { position } : {}) }
+  }
+
+  it('stores the registration id under a session-specific key after registering', async () => {
+    const user = userEvent.setup()
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn().mockResolvedValue(confirmedResponse)}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
+
+    await fillAndSubmit(user)
+    await screen.findByRole('status')
+
+    expect(window.localStorage.getItem(storageKey)).toBe(String(confirmedResponse.id))
+  })
+
+  it('does not call onLookup when no id is stored', () => {
+    const onLookup = vi.fn()
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={onLookup}
+      />
+    )
+
+    expect(onLookup).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Your registration:/)).not.toBeInTheDocument()
+  })
+
+  it('looks up the stored id on load and shows Confirmed with a Cancel button', async () => {
+    window.localStorage.setItem(storageKey, '42')
+    const onLookup = vi.fn().mockResolvedValue(lookup('confirmed'))
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={onLookup}
+      />
+    )
+
+    expect(await screen.findByText('Your registration: Confirmed')).toBeInTheDocument()
+    expect(onLookup).toHaveBeenCalledWith(42)
+    expect(screen.getByRole('button', { name: 'Cancel Registration' })).toBeEnabled()
+  })
+
+  it('shows Waitlisted with its position', async () => {
+    window.localStorage.setItem(storageKey, '42')
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={vi.fn().mockResolvedValue(lookup('waitlisted', 3))}
+      />
+    )
+
+    expect(
+      await screen.findByText('Your registration: Waitlisted (position 3)')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel Registration' })).not.toBeInTheDocument()
+  })
+
+  it('shows Cancelled with a disabled Cancelled button', async () => {
+    window.localStorage.setItem(storageKey, '42')
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={vi.fn().mockResolvedValue(lookup('cancelled'))}
+      />
+    )
+
+    expect(await screen.findByText('Your registration: Cancelled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancelled' })).toBeDisabled()
+  })
+
+  it('removes a stale stored id when the lookup is rejected', async () => {
+    window.localStorage.setItem(storageKey, '42')
+    const onLookup = vi.fn().mockRejectedValue(new Error('Registration not found'))
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={onLookup}
+      />
+    )
+
+    await waitFor(() => expect(window.localStorage.getItem(storageKey)).toBeNull())
+    expect(screen.queryByText(/Your registration:/)).not.toBeInTheDocument()
+  })
+
+  it('tolerates unavailable storage on load', async () => {
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+      throw new Error('storage disabled')
+    })
+    const onLookup = vi.fn()
+
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={onLookup}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /register/i })).toBeEnabled()
+    expect(onLookup).not.toHaveBeenCalled()
+  })
+
+  it('still registers when storage cannot be written', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn().mockResolvedValue(confirmedResponse)}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
+
+    await fillAndSubmit(user)
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/registered for/i)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows the status line after registering', async () => {
+    const user = userEvent.setup()
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn().mockResolvedValue(waitlistedResponse)}
+        onCancel={vi.fn()}
+        onLookup={vi.fn()}
+      />
+    )
+
+    await fillAndSubmit(user)
+
+    expect(
+      await screen.findByText('Your registration: Waitlisted (position 3)')
+    ).toBeInTheDocument()
+  })
+
+  it('shows no promotion message to the canceller', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const onCancel = vi.fn().mockResolvedValue({
+      status: 'cancelled',
+      promotedRegistrationId: 99,
+      registered: 10,
+      capacity: 10,
+    } satisfies CancelResponse)
+    render(
+      <TrainingSessionCard
+        session={session}
+        onRegister={vi.fn().mockResolvedValue(confirmedResponse)}
+        onCancel={onCancel}
+        onLookup={vi.fn()}
+      />
+    )
+    await fillAndSubmit(user)
+    await screen.findByRole('status')
+
+    await user.click(screen.getByRole('button', { name: 'Cancel Registration' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Your registration has been cancelled'
+    )
+    expect(screen.queryByText(/promot/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/99/)).not.toBeInTheDocument()
   })
 })
