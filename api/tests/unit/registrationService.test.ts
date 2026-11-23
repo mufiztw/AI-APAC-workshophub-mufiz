@@ -58,6 +58,39 @@ describe('registerForSession length boundaries', () => {
   })
 })
 
+describe('registerForSession maximum length (exact boundaries)', () => {
+  const email254 = `${'a'.repeat(64)}@${'b'.repeat(185)}.com`
+  const email255 = `${'a'.repeat(64)}@${'b'.repeat(186)}.com`
+
+  it('accepts a name of exactly 100 characters', async () => {
+    mockCreate.mockResolvedValue({ status: 'created', ...created })
+    await registerForSession(7, { name: 'a'.repeat(100), email: 'ada@example.com' })
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts an email of exactly 254 characters', async () => {
+    mockCreate.mockResolvedValue({ status: 'created', ...created })
+    expect(email254).toHaveLength(254)
+    await registerForSession(7, { name: 'Ada', email: email254 })
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a name of exactly 101 characters with a ValidationError naming the limit', async () => {
+    await expect(
+      registerForSession(7, { name: 'a'.repeat(101), email: 'ada@example.com' })
+    ).rejects.toThrow(/name.*100/)
+    expect(mockCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects an email of exactly 255 characters with a ValidationError naming the limit', async () => {
+    expect(email255).toHaveLength(255)
+    await expect(registerForSession(7, { name: 'Ada', email: email255 })).rejects.toThrow(
+      /email.*254/
+    )
+    expect(mockCreate).not.toHaveBeenCalled()
+  })
+})
+
 describe('registerForSession', () => {
   it('trims input and delegates to the repository', async () => {
     mockCreate.mockResolvedValue({ status: 'created', ...created })

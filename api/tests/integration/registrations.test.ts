@@ -86,6 +86,54 @@ describe('POST /api/training-sessions/:id/registrations', () => {
     expect(await getRegistered(id)).toBe(0)
   })
 
+  describe('maximum length validation', () => {
+    const email254 = `${'a'.repeat(64)}@${'b'.repeat(185)}.com`
+    const email255 = `${'a'.repeat(64)}@${'b'.repeat(186)}.com`
+
+    it('accepts a name of exactly 100 characters', async () => {
+      const id = await createSession(5)
+      const response = await post(id, { name: 'a'.repeat(100), email: 'ada@example.com' })
+      expect(response.status).toBe(201)
+      expect(response.body.name).toBe('a'.repeat(100))
+      expect(await getRegistered(id)).toBe(1)
+    })
+
+    it('accepts an email of exactly 254 characters', async () => {
+      const id = await createSession(5)
+      const response = await post(id, { name: 'Ada', email: email254 })
+      expect(response.status).toBe(201)
+      expect(response.body.email).toBe(email254)
+      expect(await getRegistered(id)).toBe(1)
+    })
+
+    it('returns 400 with an error body for a name of 101 characters', async () => {
+      const id = await createSession(5)
+      const response = await post(id, { name: 'a'.repeat(101), email: 'ada@example.com' })
+      expect(response.status).toBe(400)
+      expect(response.body).toEqual({ error: expect.stringMatching(/name.*100/) })
+    })
+
+    it('returns 400 with an error body for an email of 255 characters', async () => {
+      const id = await createSession(5)
+      const response = await post(id, { name: 'Ada', email: email255 })
+      expect(response.status).toBe(400)
+      expect(response.body).toEqual({ error: expect.stringMatching(/email.*254/) })
+    })
+
+    it('creates no registration and consumes no seat when input is oversized', async () => {
+      const id = await createSession(1)
+      const longName = await post(id, { name: 'a'.repeat(101), email: 'ada@example.com' })
+      const longEmail = await post(id, { name: 'Ada', email: email255 })
+      expect(longName.status).toBe(400)
+      expect(longEmail.status).toBe(400)
+      expect(await getRegistered(id)).toBe(0)
+      expect(await prisma.registration.count({ where: { sessionId: id } })).toBe(0)
+
+      const valid = await post(id, validBody)
+      expect(valid.status).toBe(201)
+    })
+  })
+
   it('returns 400 for a non-numeric session id', async () => {
     const response = await post('not-a-number', validBody)
     expect(response.status).toBe(400)
