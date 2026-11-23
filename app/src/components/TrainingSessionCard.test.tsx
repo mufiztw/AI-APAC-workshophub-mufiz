@@ -39,6 +39,20 @@ describe('TrainingSessionCard registration', () => {
     expect(screen.getByRole('button', { name: /register/i })).toBeDisabled()
   })
 
+  it('shows a Full badge and disables the inputs when the session is full', () => {
+    render(<TrainingSessionCard session={{ ...session, registered: 10 }} onRegister={vi.fn()} />)
+
+    expect(screen.getByText('Full')).toBeInTheDocument()
+    expect(screen.getByLabelText(/name/i)).toBeDisabled()
+    expect(screen.getByLabelText(/email/i)).toBeDisabled()
+  })
+
+  it('does not show a Full badge when seats remain', () => {
+    render(<TrainingSessionCard session={session} onRegister={vi.fn()} />)
+
+    expect(screen.queryByText('Full')).not.toBeInTheDocument()
+  })
+
   it('calls onRegister with the name and email on submit', async () => {
     const user = userEvent.setup()
     const onRegister = vi.fn().mockResolvedValue(undefined)
