@@ -1,5 +1,5 @@
 ---
-description: Kick off work on a Jira card, save the story to ./stories, and create a working branch
+description: Kick off work on a Jira card, save the story to ./stories, create a working branch, and hand off to /spdd-analysis
 argument-hint: <jira-card-key, e.g. LATC-2>
 allowed-tools: AskUserQuestion, Bash, Write, mcp__jira__getJiraIssue, mcp__jira__editJiraIssue, mcp__jira__createJiraIssue, mcp__jira__transitionJiraIssue, mcp__jira__atlassianUserInfo, mcp__jira__addOrEditJiraIssueComment
 ---
@@ -14,9 +14,7 @@ Start work on the Jira card `$ARGUMENTS`. If no card key was given, use AskUserQ
 
 ## 1. Read the card
 
-Use `getJiraIssue` to read the card: key, title, description, acceptance criteria, status, and anything else relevant. Present a short summary to the user.
-
-If anything in the card is ambiguous or missing (unclear scope, no acceptance criteria, conflicting details), use **AskUserQuestion** to clarify before continuing. Do not guess.
+Use `getJiraIssue` to read the card: key, title, description, status, and anything else relevant. Present a short summary to the user. Do not analyse requirements or break down acceptance criteria here; that is the job of `/spdd-analysis`.
 
 ## 2. Check the status
 
@@ -41,7 +39,7 @@ If the user declines, skip the comment and continue.
 Save the card content as a markdown file in `./stories` (create the directory with Bash if it does not exist):
 
 - Filename: `<original-card-key-lowercase>-<desc>.md`, for example `latc-2-show-seats-remaining.md`.
-- Contents: original key (and the copy's key, if one was made), title, status, link to the card, description, acceptance criteria, and any clarifications gathered from the user.
+- Contents: original key (and the copy's key, if one was made), title, status, link to the card, and the description exactly as written on the card.
 
 ## 5. Create the branch
 
@@ -52,6 +50,6 @@ Save the card content as a markdown file in `./stories` (create the directory wi
 2. Run `git status` first. If there are uncommitted changes that would be affected, tell the user and ask how to proceed.
 3. Run `git checkout -b <branch-name>` (via Bash).
 
-## 6. Confirm and stop
+## 6. Hand off to /spdd-analysis
 
-Report the branch name, the story file path, and, if a copy was made, the copy's key. Then **stop**. Do not start implementing, commit, or push.
+Report the branch name, the story file path, and, if a copy was made, the copy's key. Then tell the user to continue with `/spdd-analysis @<story-file-path>`, and **stop**. Do not analyse requirements, start implementing, commit, or push.
