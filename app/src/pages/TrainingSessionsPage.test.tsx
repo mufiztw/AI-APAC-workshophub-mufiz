@@ -120,3 +120,73 @@ describe('TrainingSessionsPage registration', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Registration failed: 500')
   })
 })
+
+describe('TrainingSessionsPage cancellation', () => {
+  const confirmedBody = {
+    id: 7,
+    sessionId: 5,
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+    status: 'confirmed',
+    createdAt: '2026-07-01T00:00:00Z',
+    registered: 5,
+    capacity: 10,
+  }
+
+  function mockFetchWithDelete(deleteResponse: Response) {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.resolve(jsonResponse(201, confirmedBody))
+      if (init?.method === 'DELETE') return Promise.resolve(deleteResponse)
+      return Promise.resolve(jsonResponse(200, [session]))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    return fetchMock
+  }
+
+  async function registerAndCancel(user: ReturnType<typeof userEvent.setup>) {
+    await register(user)
+    await screen.findByText(/5 \/ 10 registered/)
+    await user.click(await screen.findByRole('button', { name: 'Cancel Registration' }))
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('sends DELETE to the cancel endpoint and updates the count from the response', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetchWithDelete(
+      jsonResponse(200, { status: 'cancelled', registered: 4, capacity: 10 })
+    )
+    render(<TrainingSessionsPage />)
+
+    await registerAndCancel(user)
+
+    expect(await screen.findByText(/4 \/ 10 registered/)).toBeInTheDocument()
+    const del = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
+    expect(del?.[0]).toBe('/api/training-sessions/5/registrations/7')
+    expect(await screen.findByRole('button', { name: 'Cancelled' })).toBeDisabled()
+  })
+
+  it('shows the API error message when cancelling is rejected', async () => {
+    const user = userEvent.setup()
+    mockFetchWithDelete(jsonResponse(409, { error: 'Registration is already cancelled' }))
+    render(<TrainingSessionsPage />)
+
+    await registerAndCancel(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Registration is already cancelled')
+    expect(screen.getByText(/5 \/ 10 registered/)).toBeInTheDocument()
+  })
+
+  it('falls back to Cancellation failed with the status when the body is not JSON', async () => {
+    const user = userEvent.setup()
+    mockFetchWithDelete(new Response('boom', { status: 500 }))
+    render(<TrainingSessionsPage />)
+
+    await registerAndCancel(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cancellation failed: 500')
+  })
+})

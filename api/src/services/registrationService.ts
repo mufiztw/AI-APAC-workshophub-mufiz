@@ -1,6 +1,16 @@
 import { Registration } from '@prisma/client'
-import { SessionNotFoundError, ValidationError } from '../errors'
-import { createRegistration, RegistrationInput } from '../repositories/registrationRepository'
+import {
+  RegistrationAlreadyCancelledError,
+  RegistrationNotFoundError,
+  SessionNotFoundError,
+  ValidationError,
+} from '../errors'
+import {
+  cancelRegistration as cancelRegistrationInRepository,
+  createRegistration,
+  RegistrationInput,
+} from '../repositories/registrationRepository'
+import { onSeatFreed } from './waitlistPromotion'
 
 export type RegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled'
 
@@ -9,6 +19,12 @@ export type RegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled'
 export type RegistrationResult = Registration & { registered: number; capacity: number }
 
 export type WaitlistResult = RegistrationResult & { position: number }
+
+export interface CancelResponse {
+  status: 'cancelled'
+  registered: number
+  capacity: number
+}
 
 const MAX_NAME_LENGTH = 100
 const MAX_EMAIL_LENGTH = 254
@@ -55,5 +71,32 @@ export async function registerForSession(
       }
     case 'created':
       return { ...result.registration, registered: result.registered, capacity: result.capacity }
+  }
+}
+
+export async function cancelRegistration(
+  sessionId: number,
+  registrationId: number
+): Promise<CancelResponse> {
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    throw new ValidationError('session id must be a positive whole number')
+  }
+  if (!Number.isInteger(registrationId) || registrationId <= 0) {
+    throw new ValidationError('registration id must be a positive whole number')
+  }
+
+  const result = await cancelRegistrationInRepository(sessionId, registrationId)
+
+  switch (result.status) {
+    case 'not_found':
+      throw new RegistrationNotFoundError()
+    case 'already_cancelled':
+      throw new RegistrationAlreadyCancelledError()
+    case 'cancelled':
+      // After the commit, so a future promotion failure cannot undo a valid cancellation.
+      if (result.previousStatus === 'confirmed') {
+        await onSeatFreed(sessionId)
+      }
+      return { status: 'cancelled', registered: result.registered, capacity: result.capacity }
   }
 }

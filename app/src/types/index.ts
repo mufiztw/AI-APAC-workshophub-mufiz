@@ -30,3 +30,9 @@ export interface RegistrationResponse {
   registered: number
   capacity: number
 }
+
+export interface CancelResponse {
+  status: 'cancelled'
+  registered: number
+  capacity: number
+}
