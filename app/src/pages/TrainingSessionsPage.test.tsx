@@ -54,6 +54,7 @@ describe('TrainingSessionsPage registration', () => {
         sessionId: 5,
         name: 'Ada Lovelace',
         email: 'ada@example.com',
+        status: 'confirmed',
         createdAt: '2026-07-01T00:00:00Z',
         registered: 5,
         capacity: 10,
@@ -70,14 +71,42 @@ describe('TrainingSessionsPage registration', () => {
     expect(post?.[1]?.body).toBe(JSON.stringify({ name: 'Ada Lovelace', email: 'ada@example.com' }))
   })
 
-  it('shows the error message from the response body and leaves the count unchanged', async () => {
+  it('treats 202 as success, shows the waitlist position and leaves the count unchanged', async () => {
     const user = userEvent.setup()
-    mockFetch(jsonResponse(409, { error: 'Training session is full' }))
+    mockFetch(
+      jsonResponse(202, {
+        id: 2,
+        sessionId: 5,
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        status: 'waitlisted',
+        position: 2,
+        createdAt: '2026-07-01T00:00:00Z',
+        registered: 10,
+        capacity: 10,
+      })
+    )
     render(<TrainingSessionsPage />)
 
     await register(user)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Training session is full')
+    const status = await screen.findByRole('status')
+    expect(status).toHaveTextContent(/waitlist/i)
+    expect(status).toHaveTextContent('2')
+    expect(status).toHaveTextContent(/not confirmed/i)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText(/4 \/ 10 registered/)).toBeInTheDocument()
+    expect(screen.queryByText(/10 \/ 10 registered/)).not.toBeInTheDocument()
+  })
+
+  it('shows the error message from the response body and leaves the count unchanged', async () => {
+    const user = userEvent.setup()
+    mockFetch(jsonResponse(400, { error: 'Name is required' }))
+    render(<TrainingSessionsPage />)
+
+    await register(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Name is required')
     expect(screen.getByText(/4 \/ 10 registered/)).toBeInTheDocument()
   })
 

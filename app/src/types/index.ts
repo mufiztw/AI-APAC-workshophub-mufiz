@@ -17,11 +17,15 @@ export interface RegistrationRequest {
   email: string
 }
 
+export type RegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled'
+
 export interface RegistrationResponse {
   id: number
   sessionId: number
   name: string
   email: string
+  status: RegistrationStatus
+  position?: number
   createdAt: string
   registered: number
   capacity: number

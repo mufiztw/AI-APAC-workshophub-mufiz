@@ -1,10 +1,10 @@
 import { FormEvent, useState } from 'react'
-import type { RegistrationRequest, TrainingSession } from '../types'
+import type { RegistrationRequest, RegistrationResponse, TrainingSession } from '../types'
 import './TrainingSessionCard.css'
 
 interface Props {
   session: TrainingSession
-  onRegister: (input: RegistrationRequest) => Promise<void>
+  onRegister: (input: RegistrationRequest) => Promise<RegistrationResponse>
 }
 
 function formatDate(dateStr: string): string {
@@ -47,8 +47,12 @@ function TrainingSessionCard({ session, onRegister }: Props) {
     setConfirmation(null)
     setErrorMessage(null)
     try {
-      await onRegister({ name, email })
-      setConfirmation(`You are registered for ${session.title}.`)
+      const result = await onRegister({ name, email })
+      setConfirmation(
+        result.status === 'waitlisted'
+          ? `You are on the waitlist for ${session.title} at position ${result.position}. Your place is not confirmed.`
+          : `You are registered for ${session.title}.`
+      )
       setName('')
       setEmail('')
     } catch (err: unknown) {
@@ -98,28 +102,21 @@ function TrainingSessionCard({ session, onRegister }: Props) {
       </div>
 
       <form className="registration-form" onSubmit={handleSubmit}>
+        {isFull && (
+          <p className="registration-form__hint">
+            This session is full. Join the waitlist and we will keep your place in line.
+          </p>
+        )}
         <label className="registration-form__field">
           Name
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={isFull}
-            required
-          />
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
         <label className="registration-form__field">
           Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={isFull}
-            required
-          />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </label>
-        <button type="submit" className="registration-form__button" disabled={isFull || submitting}>
-          Register
+        <button type="submit" className="registration-form__button" disabled={submitting}>
+          {isFull ? 'Join Waitlist' : 'Register'}
         </button>
         {confirmation && (
           <p

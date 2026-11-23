@@ -144,26 +144,109 @@ describe('POST /api/training-sessions/:id/registrations', () => {
     expect(response.status).toBe(404)
   })
 
-  it('returns 409 when the session is full', async () => {
-    const id = await createSession(2, 2)
+  it('returns 201 with status confirmed and stores a confirmed row when a seat is free', async () => {
+    const id = await createSession(5)
+
     const response = await post(id, validBody)
-    expect(response.status).toBe(409)
-    expect(await getRegistered(id)).toBe(2)
+
+    expect(response.status).toBe(201)
+    expect(response.body.status).toBe('confirmed')
+    expect(response.body.position).toBeUndefined()
+    const row = await prisma.registration.findUniqueOrThrow({ where: { id: response.body.id } })
+    expect(row.status).toBe('confirmed')
   })
 
-  it('allows the last seat then rejects the next registration', async () => {
+  describe('waitlist when the session is full', () => {
+    it('returns 202 with status waitlisted and position 1', async () => {
+      const id = await createSession(2, 2)
+
+      const response = await post(id, validBody)
+
+      expect(response.status).toBe(202)
+      expect(response.body).toMatchObject({
+        sessionId: id,
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        status: 'waitlisted',
+        position: 1,
+        registered: 2,
+        capacity: 2,
+      })
+      expect(response.body.id).toEqual(expect.any(Number))
+      expect(response.body.createdAt).toEqual(expect.any(String))
+    })
+
+    it('never returns 409 for a full session', async () => {
+      const id = await createSession(1, 1)
+      const response = await post(id, validBody)
+      expect(response.status).not.toBe(409)
+    })
+
+    it('gives the second waitlisted join position 2', async () => {
+      const id = await createSession(2, 2)
+
+      const first = await post(id, validBody)
+      const second = await post(id, { name: 'Grace Hopper', email: 'grace@example.com' })
+
+      expect(first.body.position).toBe(1)
+      expect(second.status).toBe(202)
+      expect(second.body.position).toBe(2)
+    })
+
+    it('leaves registered unchanged and stores a waitlisted row', async () => {
+      const id = await createSession(2, 2)
+
+      const response = await post(id, validBody)
+
+      expect(await getRegistered(id)).toBe(2)
+      const row = await prisma.registration.findUniqueOrThrow({ where: { id: response.body.id } })
+      expect(row.status).toBe('waitlisted')
+      expect(row.sessionId).toBe(id)
+    })
+
+    it('computes positions per session', async () => {
+      const a = await createSession(1, 1)
+      const b = await createSession(1, 1)
+
+      await post(a, validBody)
+      const firstOfB = await post(b, validBody)
+
+      expect(firstOfB.body.position).toBe(1)
+    })
+
+    it('creates no waitlist row for invalid input on a full session', async () => {
+      const id = await createSession(1, 1)
+
+      const response = await post(id, { name: '', email: 'bad' })
+
+      expect(response.status).toBe(400)
+      expect(await prisma.registration.count({ where: { sessionId: id } })).toBe(0)
+    })
+
+    it('returns 404 and creates no row for a missing session', async () => {
+      const before = await prisma.registration.count()
+      const response = await post(999999, validBody)
+      expect(response.status).toBe(404)
+      expect(await prisma.registration.count()).toBe(before)
+    })
+  })
+
+  it('confirms the last seat then waitlists the next registration', async () => {
     const id = await createSession(2, 1)
 
     const last = await post(id, validBody)
     expect(last.status).toBe(201)
+    expect(last.body.status).toBe('confirmed')
     expect(last.body.registered).toBe(2)
 
     const over = await post(id, validBody)
-    expect(over.status).toBe(409)
+    expect(over.status).toBe(202)
+    expect(over.body.status).toBe('waitlisted')
+    expect(over.body.position).toBe(1)
     expect(await getRegistered(id)).toBe(2)
   })
 
-  it('never overbooks under concurrent requests', async () => {
+  it('never overbooks and assigns distinct waitlist positions under concurrent requests', async () => {
     const id = await createSession(3)
 
     const responses = await Promise.all(
@@ -172,10 +255,18 @@ describe('POST /api/training-sessions/:id/registrations', () => {
       )
     )
 
-    const statuses = responses.map((r) => r.status)
-    expect(statuses.filter((s) => s === 201)).toHaveLength(3)
-    expect(statuses.filter((s) => s === 409)).toHaveLength(7)
+    const confirmed = responses.filter((r) => r.status === 201)
+    const waitlisted = responses.filter((r) => r.status === 202)
+    expect(confirmed).toHaveLength(3)
+    expect(waitlisted).toHaveLength(7)
+    const positions = waitlisted.map((r) => r.body.position as number).sort((x, y) => x - y)
+    expect(positions).toEqual([1, 2, 3, 4, 5, 6, 7])
     expect(await getRegistered(id)).toBe(3)
-    expect(await prisma.registration.count({ where: { sessionId: id } })).toBe(3)
+    expect(
+      await prisma.registration.count({ where: { sessionId: id, status: 'confirmed' } })
+    ).toBe(3)
+    expect(
+      await prisma.registration.count({ where: { sessionId: id, status: 'waitlisted' } })
+    ).toBe(7)
   })
 })

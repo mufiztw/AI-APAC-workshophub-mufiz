@@ -33,7 +33,10 @@ function TrainingSessionsPage() {
       })
   }, [])
 
-  async function handleRegister(sessionId: number, input: RegistrationRequest): Promise<void> {
+  async function handleRegister(
+    sessionId: number,
+    input: RegistrationRequest
+  ): Promise<RegistrationResponse> {
     const res = await fetch(`${API_BASE}/api/training-sessions/${sessionId}/registrations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,13 +47,16 @@ function TrainingSessionsPage() {
       throw new Error(errorMessageFrom(body) ?? `Registration failed: ${res.status}`)
     }
     const registration: RegistrationResponse = await res.json()
-    setSessions((current) =>
-      current.map((s) =>
-        s.id === sessionId
-          ? { ...s, registered: registration.registered, capacity: registration.capacity }
-          : s
+    if (registration.status === 'confirmed') {
+      setSessions((current) =>
+        current.map((s) =>
+          s.id === sessionId
+            ? { ...s, registered: registration.registered, capacity: registration.capacity }
+            : s
+        )
       )
-    )
+    }
+    return registration
   }
 
   if (loading) {

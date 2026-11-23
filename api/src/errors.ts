@@ -11,10 +11,3 @@ export class SessionNotFoundError extends Error {
     this.name = 'SessionNotFoundError'
   }
 }
-
-export class SessionFullError extends Error {
-  constructor() {
-    super('Training session is full')
-    this.name = 'SessionFullError'
-  }
-}
