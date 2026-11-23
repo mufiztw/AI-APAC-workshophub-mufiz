@@ -1,6 +1,6 @@
 import { registerForSession } from '../../src/services/registrationService'
 import { createRegistration } from '../../src/repositories/registrationRepository'
-import { SessionFullError, SessionNotFoundError, ValidationError } from '../../src/errors'
+import { SessionNotFoundError, ValidationError } from '../../src/errors'
 
 jest.mock('../../src/repositories/registrationRepository', () => ({
   createRegistration: jest.fn(),
@@ -14,6 +14,7 @@ const created = {
     sessionId: 7,
     name: 'Ada Lovelace',
     email: 'ada@example.com',
+    status: 'confirmed',
     createdAt: new Date('2026-07-01T09:00:00Z'),
   },
   registered: 4,
@@ -104,7 +105,12 @@ describe('registerForSession', () => {
       name: 'Ada Lovelace',
       email: 'ada@example.com',
     })
-    expect(result).toEqual({ ...created.registration, registered: 4, capacity: 10 })
+    expect(result).toEqual({
+      ...created.registration,
+      status: 'confirmed',
+      registered: 4,
+      capacity: 10,
+    })
   })
 
   it('throws SessionNotFoundError when the repository reports not_found', async () => {
@@ -115,11 +121,39 @@ describe('registerForSession', () => {
     ).rejects.toBeInstanceOf(SessionNotFoundError)
   })
 
-  it('throws SessionFullError when the repository reports full', async () => {
-    mockCreate.mockResolvedValue({ status: 'full' })
+  it('returns a waitlisted result with position when the repository waitlists', async () => {
+    const waitlistedRegistration = { ...created.registration, id: 9, status: 'waitlisted' }
+    mockCreate.mockResolvedValue({
+      status: 'waitlisted',
+      registration: waitlistedRegistration,
+      position: 2,
+      registered: 10,
+      capacity: 10,
+    })
 
-    await expect(
-      registerForSession(7, { name: 'Ada', email: 'ada@example.com' })
-    ).rejects.toBeInstanceOf(SessionFullError)
+    const result = await registerForSession(7, { name: 'Ada', email: 'ada@example.com' })
+
+    expect(result).toEqual({
+      ...waitlistedRegistration,
+      status: 'waitlisted',
+      position: 2,
+      registered: 10,
+      capacity: 10,
+    })
+  })
+
+  it('does not include a position on a confirmed result', async () => {
+    mockCreate.mockResolvedValue({ status: 'created', ...created })
+
+    const result = await registerForSession(7, { name: 'Ada', email: 'ada@example.com' })
+
+    expect(result).not.toHaveProperty('position')
+  })
+
+  it('validates input identically before waitlisting', async () => {
+    await expect(registerForSession(7, { name: '', email: 'ada@example.com' })).rejects.toBeInstanceOf(
+      ValidationError
+    )
+    expect(mockCreate).not.toHaveBeenCalled()
   })
 })

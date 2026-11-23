@@ -1,8 +1,14 @@
 import { Registration } from '@prisma/client'
-import { SessionFullError, SessionNotFoundError, ValidationError } from '../errors'
+import { SessionNotFoundError, ValidationError } from '../errors'
 import { createRegistration, RegistrationInput } from '../repositories/registrationRepository'
 
+export type RegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled'
+
+// Prisma models `status` as a plain string (SQLite has no enums); the values written
+// are limited to RegistrationStatus.
 export type RegistrationResult = Registration & { registered: number; capacity: number }
+
+export type WaitlistResult = RegistrationResult & { position: number }
 
 const MAX_NAME_LENGTH = 100
 const MAX_EMAIL_LENGTH = 254
@@ -32,15 +38,21 @@ function parseInput(input: unknown): RegistrationInput {
 export async function registerForSession(
   sessionId: number,
   input: unknown
-): Promise<RegistrationResult> {
+): Promise<RegistrationResult | WaitlistResult> {
   const data = parseInput(input)
   const result = await createRegistration(sessionId, data)
 
   switch (result.status) {
     case 'not_found':
       throw new SessionNotFoundError()
-    case 'full':
-      throw new SessionFullError()
+    case 'waitlisted':
+      return {
+        ...result.registration,
+        status: 'waitlisted',
+        position: result.position,
+        registered: result.registered,
+        capacity: result.capacity,
+      }
     case 'created':
       return { ...result.registration, registered: result.registered, capacity: result.capacity }
   }

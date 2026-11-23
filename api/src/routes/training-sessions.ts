@@ -2,7 +2,7 @@ import { Router, IRouter, Request, Response } from 'express'
 import prisma from '../lib/prisma'
 import { getAllSessions, getSessionById } from '../services/trainingSessionService'
 import { registerForSession } from '../services/registrationService'
-import { SessionFullError, SessionNotFoundError, ValidationError } from '../errors'
+import { SessionNotFoundError, ValidationError } from '../errors'
 
 const router: IRouter = Router()
 
@@ -61,7 +61,7 @@ router.post('/:id/registrations', async (req: Request, res: Response) => {
 
   try {
     const result = await registerForSession(id, req.body)
-    res.status(201).json(result)
+    res.status(result.status === 'waitlisted' ? 202 : 201).json(result)
   } catch (error: unknown) {
     if (error instanceof ValidationError) {
       res.status(400).json({ error: error.message })
@@ -69,10 +69,6 @@ router.post('/:id/registrations', async (req: Request, res: Response) => {
     }
     if (error instanceof SessionNotFoundError) {
       res.status(404).json({ error: error.message })
-      return
-    }
-    if (error instanceof SessionFullError) {
-      res.status(409).json({ error: error.message })
       return
     }
     console.error('Error registering for training session:', error)

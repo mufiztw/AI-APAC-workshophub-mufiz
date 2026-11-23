@@ -13,7 +13,13 @@ export interface RegistrationInput {
 
 export type CreateRegistrationResult =
   | { status: 'created'; registration: Registration; registered: number; capacity: number }
-  | { status: 'full' }
+  | {
+      status: 'waitlisted'
+      registration: Registration
+      position: number
+      registered: number
+      capacity: number
+    }
   | { status: 'not_found' }
 
 async function claimSeatAndRegister(
@@ -27,12 +33,30 @@ async function claimSeatAndRegister(
     WHERE id = ${sessionId} AND registered < capacity`
 
   if (updated === 0) {
+    // No seat was free: the same transaction decides to waitlist, so the outcome
+    // always matches the seat count.
     const existing = await tx.trainingSession.findUnique({ where: { id: sessionId } })
-    return existing ? { status: 'full' } : { status: 'not_found' }
+    if (!existing) {
+      return { status: 'not_found' }
+    }
+    const registration = await tx.registration.create({
+      data: { sessionId, name: input.name, email: input.email, status: 'waitlisted' },
+    })
+    // Position is derived from join order (id) rather than stored.
+    const position = await tx.registration.count({
+      where: { sessionId, status: 'waitlisted', id: { lte: registration.id } },
+    })
+    return {
+      status: 'waitlisted',
+      registration,
+      position,
+      registered: existing.registered,
+      capacity: existing.capacity,
+    }
   }
 
   const registration = await tx.registration.create({
-    data: { sessionId, name: input.name, email: input.email },
+    data: { sessionId, name: input.name, email: input.email, status: 'confirmed' },
   })
   const session = await tx.trainingSession.findUnique({
     where: { id: sessionId },
@@ -51,8 +75,8 @@ async function claimSeatAndRegister(
 }
 
 /**
- * Atomically claims a seat (conditional UPDATE) and records the registration in one
- * transaction, so concurrent requests can never push `registered` above `capacity`.
+ * Atomically claims a seat (conditional UPDATE) and records the registration as confirmed,
+ * or as waitlisted when the session is full, in one transaction, so concurrent requests can never push `registered` above `capacity`.
  */
 export async function createRegistration(
   sessionId: number,
