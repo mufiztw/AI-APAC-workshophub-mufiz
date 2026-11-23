@@ -103,3 +103,56 @@
   color: #16a34a;
   font-weight: 500;
 }
+
+.registration-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.registration-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.registration-form__field input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.registration-form__button {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.registration-form__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.registration-form__message {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.registration-form__message--success {
+  color: #16a34a;
+}
+
+.registration-form__message--error {
+  color: var(--color-error);
+}
