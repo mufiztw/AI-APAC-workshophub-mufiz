@@ -9,6 +9,7 @@ import {
   cancelRegistration as cancelRegistrationInRepository,
   createRegistration,
   getRegistration as getRegistrationFromRepository,
+  listSessionRegistrations,
   RegistrationInput,
 } from '../repositories/registrationRepository'
 import { onRegistrationPromoted } from './waitlistPromotion'
@@ -141,4 +142,42 @@ export async function getRegistration(
     lookup.position = position
   }
   return lookup
+}
+
+export interface RegistrationEntry {
+  id: number
+  name: string
+  email: string
+  status: RegistrationStatus
+  createdAt: Date
+}
+
+export interface SessionRegistrations {
+  confirmed: RegistrationEntry[]
+  waitlisted: RegistrationEntry[]
+}
+
+export async function getSessionRegistrations(sessionId: number): Promise<SessionRegistrations> {
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    throw new ValidationError('Invalid session ID')
+  }
+
+  const result = await listSessionRegistrations(sessionId)
+  if (result.status === 'not_found') {
+    throw new SessionNotFoundError()
+  }
+
+  const roster: SessionRegistrations = { confirmed: [], waitlisted: [] }
+  for (const registration of result.registrations) {
+    const entry: RegistrationEntry = {
+      id: registration.id,
+      name: registration.name,
+      email: registration.email,
+      status: registration.status as RegistrationStatus,
+      createdAt: registration.createdAt,
+    }
+    if (registration.status === 'confirmed') roster.confirmed.push(entry)
+    else if (registration.status === 'waitlisted') roster.waitlisted.push(entry)
+  }
+  return roster
 }

@@ -44,3 +44,16 @@ export interface RegistrationLookup {
   status: RegistrationStatus
   position?: number
 }
+
+export interface RegistrationEntry {
+  id: number
+  name: string
+  email: string
+  status: RegistrationStatus
+  createdAt: string
+}
+
+export interface SessionRegistrations {
+  confirmed: RegistrationEntry[]
+  waitlisted: RegistrationEntry[]
+}

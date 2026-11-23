@@ -4,6 +4,7 @@ import { getAllSessions, getSessionById } from '../services/trainingSessionServi
 import {
   cancelRegistration,
   getRegistration,
+  getSessionRegistrations,
   registerForSession,
 } from '../services/registrationService'
 import {
@@ -58,6 +59,30 @@ router.get('/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching training session:', error)
     res.status(500).json({ error: 'Failed to fetch training session' })
+  }
+})
+
+router.get('/:id/registrations', async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) {
+    res.status(400).json({ error: 'Invalid session ID' })
+    return
+  }
+
+  try {
+    const result = await getSessionRegistrations(id)
+    res.status(200).json(result)
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      res.status(400).json({ error: error.message })
+      return
+    }
+    if (error instanceof SessionNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    console.error('Error fetching session registrations:', error)
+    res.status(500).json({ error: 'Failed to fetch session registrations' })
   }
 })
 

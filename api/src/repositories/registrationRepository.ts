@@ -213,3 +213,22 @@ export async function getRegistration(
   })
   return { status: 'found', registration, position }
 }
+
+export type SessionRegistrationsLookup =
+  | { status: 'found'; registrations: Registration[] }
+  | { status: 'not_found' }
+
+// Join order (createdAt, then id) matches waitlist position and promotion order.
+export async function listSessionRegistrations(
+  sessionId: number
+): Promise<SessionRegistrationsLookup> {
+  const session = await prisma.trainingSession.findUnique({ where: { id: sessionId } })
+  if (!session) {
+    return { status: 'not_found' }
+  }
+  const registrations = await prisma.registration.findMany({
+    where: { sessionId, status: { in: ['confirmed', 'waitlisted'] } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  })
+  return { status: 'found', registrations }
+}
