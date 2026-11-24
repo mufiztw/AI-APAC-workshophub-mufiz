@@ -99,6 +99,32 @@ describe('cancelRegistration', () => {
     expect(mockOnPromoted).toHaveBeenCalledWith(7, 30)
   })
 
+  it('returns the response without waiting for a hand-off that never resolves', async () => {
+    mockRepoCancel.mockResolvedValue({
+      status: 'cancelled',
+      previousStatus: 'confirmed',
+      promotedRegistrationId: 30,
+      registered: 10,
+      capacity: 10,
+    })
+    mockOnPromoted.mockReturnValue(new Promise<void>(() => undefined))
+    const timedOut = Symbol('timed out')
+
+    const outcome = await Promise.race([
+      cancelRegistration(7, 12),
+      new Promise<symbol>((resolve) => setTimeout(() => resolve(timedOut), 200)),
+    ])
+
+    expect(outcome).not.toBe(timedOut)
+    expect(outcome).toEqual({
+      status: 'cancelled',
+      promotedRegistrationId: 30,
+      registered: 10,
+      capacity: 10,
+    })
+    expect(mockOnPromoted).toHaveBeenCalledWith(7, 30)
+  })
+
   it('does not call onRegistrationPromoted when nobody was promoted', async () => {
     mockRepoCancel.mockResolvedValue({
       status: 'cancelled',

@@ -1,4 +1,4 @@
-import { Prisma, Registration } from '@prisma/client'
+import { Prisma, Registration, TrainingSession } from '@prisma/client'
 import prisma from '../lib/prisma'
 
 // SQLite serialises writers, so concurrent registrations queue for the write lock.
@@ -12,7 +12,14 @@ export interface RegistrationInput {
 }
 
 export type CreateRegistrationResult =
-  | { status: 'created'; registration: Registration; registered: number; capacity: number }
+  | {
+      status: 'created'
+      registration: Registration
+      registered: number
+      capacity: number
+      sessionTitle: string
+      sessionDate: Date
+    }
   | {
       status: 'waitlisted'
       registration: Registration
@@ -60,7 +67,7 @@ async function claimSeatAndRegister(
   })
   const session = await tx.trainingSession.findUnique({
     where: { id: sessionId },
-    select: { registered: true, capacity: true },
+    select: { registered: true, capacity: true, title: true, date: true },
   })
   if (!session) {
     throw new Error('Session disappeared during registration')
@@ -71,6 +78,8 @@ async function claimSeatAndRegister(
     registration,
     registered: session.registered,
     capacity: session.capacity,
+    sessionTitle: session.title,
+    sessionDate: session.date,
   }
 }
 
@@ -231,4 +240,13 @@ export async function listSessionRegistrations(
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   })
   return { status: 'found', registrations }
+}
+
+export async function findRegistrationWithSession(
+  registrationId: number
+): Promise<(Registration & { session: TrainingSession }) | null> {
+  return prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: { session: true },
+  })
 }

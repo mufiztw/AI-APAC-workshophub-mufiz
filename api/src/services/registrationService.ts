@@ -12,6 +12,7 @@ import {
   listSessionRegistrations,
   RegistrationInput,
 } from '../repositories/registrationRepository'
+import { notifyRegistration } from './notificationService'
 import { onRegistrationPromoted } from './waitlistPromotion'
 
 export type RegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled'
@@ -80,6 +81,13 @@ export async function registerForSession(
         capacity: result.capacity,
       }
     case 'created':
+      notifyRegistration({
+        name: result.registration.name,
+        email: result.registration.email,
+        sessionTitle: result.sessionTitle,
+        sessionDate: result.sessionDate,
+        status: 'confirmed',
+      })
       return { ...result.registration, registered: result.registered, capacity: result.capacity }
   }
 }
@@ -103,9 +111,14 @@ export async function cancelRegistration(
     case 'already_cancelled':
       throw new RegistrationAlreadyCancelledError()
     case 'cancelled':
-      // After the commit, so a future promotion failure cannot undo a valid cancellation.
+      // After the commit and not awaited, so a notification problem or delay cannot
+      // undo or slow a valid cancellation.
       if (result.promotedRegistrationId !== null) {
-        await onRegistrationPromoted(sessionId, result.promotedRegistrationId)
+        Promise.resolve(onRegistrationPromoted(sessionId, result.promotedRegistrationId)).catch(
+          (error: unknown) => {
+            console.error('[notification] promotion hand-off failed', error)
+          }
+        )
       }
       return {
         status: 'cancelled',

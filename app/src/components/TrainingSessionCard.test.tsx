@@ -157,7 +157,7 @@ describe('TrainingSessionCard registration', () => {
     expect(onRegister).toHaveBeenCalledWith({ name: 'Ada Lovelace', email: 'ada@example.com' })
   })
 
-  it('shows a confirmation message after a successful registration', async () => {
+  it('updates the status line and shows no inline success message after a successful registration', async () => {
     const user = userEvent.setup()
     render(
       <TrainingSessionCard
@@ -170,10 +170,12 @@ describe('TrainingSessionCard registration', () => {
 
     await fillAndSubmit(user)
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/registered/i)
+    expect(await screen.findByText('Your registration: Confirmed')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByText(/you are registered for/i)).not.toBeInTheDocument()
   })
 
-  it('submits to onRegister from a full session and shows the waitlist message with position', async () => {
+  it('submits to onRegister from a full session and shows the waitlist status line without an inline message', async () => {
     const user = userEvent.setup()
     const onRegister = vi.fn().mockResolvedValue(waitlistedResponse)
     render(
@@ -188,11 +190,12 @@ describe('TrainingSessionCard registration', () => {
     await fillAndSubmit(user)
 
     expect(onRegister).toHaveBeenCalledWith({ name: 'Ada Lovelace', email: 'ada@example.com' })
-    const status = await screen.findByRole('status')
-    expect(status).toHaveTextContent(/waitlist/i)
-    expect(status).toHaveTextContent('3')
-    expect(status).toHaveTextContent(/not confirmed/i)
-    expect(status).toHaveTextContent(session.title)
+    expect(
+      await screen.findByText('Your registration: Waitlisted (position 3)')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByText(/not confirmed/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/you are on the waitlist/i)).not.toBeInTheDocument()
   })
 
   it('leaves the displayed count unchanged after a waitlisted submission', async () => {
@@ -207,12 +210,12 @@ describe('TrainingSessionCard registration', () => {
     )
 
     await fillAndSubmit(user)
-    await screen.findByRole('status')
+    await screen.findByText('Your registration: Waitlisted (position 3)')
 
     expect(screen.getByText(/10 \/ 10 registered/)).toBeInTheDocument()
   })
 
-  it('does not say not confirmed for a confirmed registration', async () => {
+  it('does not render an inline message or waitlist text for a confirmed registration', async () => {
     const user = userEvent.setup()
     render(
       <TrainingSessionCard
@@ -225,9 +228,10 @@ describe('TrainingSessionCard registration', () => {
 
     await fillAndSubmit(user)
 
-    const status = await screen.findByRole('status')
-    expect(status).toHaveTextContent(/registered for/i)
-    expect(status).not.toHaveTextContent(/waitlist/i)
+    expect(await screen.findByText('Your registration: Confirmed')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByText(/registered for/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/waitlist/i)).not.toBeInTheDocument()
   })
 
   it('shows an error message when registration fails', async () => {
@@ -297,7 +301,7 @@ describe('TrainingSessionCard cancellation', () => {
       />
     )
     await fillAndSubmit(user)
-    await screen.findByRole('status')
+    await screen.findByText('Your registration: Confirmed')
   }
 
   it('does not show Cancel Registration before registering', () => {
@@ -332,7 +336,7 @@ describe('TrainingSessionCard cancellation', () => {
     )
 
     await fillAndSubmit(user)
-    await screen.findByRole('status')
+    await screen.findByText('Your registration: Waitlisted (position 3)')
 
     expect(screen.queryByRole('button', { name: 'Cancel Registration' })).not.toBeInTheDocument()
   })
@@ -454,7 +458,7 @@ describe('TrainingSessionCard remembered registration', () => {
     )
 
     await fillAndSubmit(user)
-    await screen.findByRole('status')
+    await screen.findByText('Your registration: Confirmed')
 
     expect(window.localStorage.getItem(storageKey)).toBe(String(confirmedResponse.id))
   })
@@ -574,7 +578,7 @@ describe('TrainingSessionCard remembered registration', () => {
 
     await fillAndSubmit(user)
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/registered for/i)
+    expect(await screen.findByText('Your registration: Confirmed')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -614,7 +618,7 @@ describe('TrainingSessionCard remembered registration', () => {
       />
     )
     await fillAndSubmit(user)
-    await screen.findByRole('status')
+    await screen.findByText('Your registration: Confirmed')
 
     await user.click(screen.getByRole('button', { name: 'Cancel Registration' }))
 

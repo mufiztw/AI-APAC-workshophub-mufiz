@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type {
   CancelResponse,
   RegistrationLookup,
@@ -6,10 +6,18 @@ import type {
   RegistrationResponse,
   TrainingSession,
 } from '../types'
+import Banner from '../components/Banner'
 import TrainingSessionCard from '../components/TrainingSessionCard'
 import './TrainingSessionsPage.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
+const BANNER_AUTO_DISMISS_MS = 5000
+
+interface BannerState {
+  id: number
+  kind: 'registered' | 'waitlisted'
+  message: string
+}
 
 function errorMessageFrom(body: unknown): string | null {
   if (typeof body === 'object' && body !== null && 'error' in body) {
@@ -22,6 +30,15 @@ function TrainingSessionsPage() {
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [banner, setBanner] = useState<BannerState | null>(null)
+  const bannerCounter = useRef(0)
+
+  const bannerId = banner?.id
+  useEffect(() => {
+    if (bannerId === undefined) return
+    const timer = setTimeout(() => setBanner(null), BANNER_AUTO_DISMISS_MS)
+    return () => clearTimeout(timer)
+  }, [bannerId])
 
   useEffect(() => {
     fetch(`${API_BASE}/api/training-sessions`)
@@ -61,6 +78,24 @@ function TrainingSessionsPage() {
             : s
         )
       )
+    }
+    const registeredSession = sessions.find((s) => s.id === sessionId)
+    if (registeredSession) {
+      const date = new Date(registeredSession.date).toLocaleDateString('en-SG', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+      bannerCounter.current += 1
+      setBanner({
+        id: bannerCounter.current,
+        kind: registration.status === 'waitlisted' ? 'waitlisted' : 'registered',
+        message:
+          registration.status === 'waitlisted'
+            ? `You're on the waitlist for ${registeredSession.title}. We'll let you know if a spot opens up.`
+            : `You're registered! ${registeredSession.title} on ${date}`,
+      })
     }
     return registration
   }
@@ -120,6 +155,9 @@ function TrainingSessionsPage() {
       <p className="sessions-count">
         {sessions.length} session{sessions.length !== 1 ? 's' : ''} available
       </p>
+      {banner && (
+        <Banner kind={banner.kind} message={banner.message} onDismiss={() => setBanner(null)} />
+      )}
       <div className="sessions-grid">
         {sessions.map((session) => (
           <TrainingSessionCard
