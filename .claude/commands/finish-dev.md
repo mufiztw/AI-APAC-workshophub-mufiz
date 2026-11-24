@@ -1,7 +1,12 @@
 ---
-description: Finish a card - run sensors, commit, push, open a PR, and move the Jira working copy to In Review
-argument-hint: [jira-card-key, defaults to the card in the branch name]
-allowed-tools: AskUserQuestion, Bash, Read, Skill, mcp__github__create_pull_request, mcp__github__get_me, mcp__jira__getJiraIssue, mcp__jira__searchJiraIssuesUsingJql, mcp__jira__getAccessibleAtlassianResources, mcp__jira__transitionJiraIssue, mcp__jira__addOrEditJiraIssueComment
+allowed-tools: AskUserQuestion, Bash, Read, Skill, mcp__github__create_pull_request,
+  mcp__github__get_me, mcp__jira__getJiraIssue, mcp__jira__searchJiraIssuesUsingJql,
+  mcp__jira__getAccessibleAtlassianResources, mcp__jira__transitionJiraIssue, mcp__jira__addOrEditJiraIssueComment
+argument-hint:
+- jira-card-key
+- defaults to the card in the branch name
+description: Finish a card - run sensors, commit, push, open a PR, and move the Jira
+  working copy to In Review
 ---
 
 # Finish dev

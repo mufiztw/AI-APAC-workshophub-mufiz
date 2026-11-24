@@ -9,7 +9,7 @@ input=$(cat)
 tool=$(jq -r '.tool_name // empty' <<<"$input")
 
 block() {
-  echo "BLOCKED by .claude/hooks/pre-tool-guard.sh: $1" >&2
+  echo "BLOCKED by .apm/hooks/scripts/pre-tool-guard.sh: $1" >&2
   exit 2
 }
 

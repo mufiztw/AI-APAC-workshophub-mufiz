@@ -1,6 +1,7 @@
 ---
-description: Run every quality sensor (REASONS canvas, branch name, tests, lint, format) and fix what fails
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep
+description: Run every quality sensor (REASONS canvas, branch name, tests, lint, format)
+  and fix what fails
 ---
 
 # Sensor and fix

@@ -7,7 +7,7 @@ set -u
 
 input=$(cat)
 file=$(jq -r '.tool_input.file_path // empty' <<<"$input" 2>/dev/null)
-root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 
 [ -z "$file" ] && exit 0
 [ -f "$file" ] || exit 0

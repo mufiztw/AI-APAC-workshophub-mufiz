@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deterministic tests for the Claude Code hooks: feeds fake tool-call JSON to the scripts
-# and asserts on the exit code (0 = allow, 2 = block). Run: bash .claude/hooks/tests/test-hooks.sh
+# and asserts on the exit code (0 = allow, 2 = block). Run: bash .apm/hooks/scripts/tests/test-hooks.sh
 cd "$(dirname "$0")/.." || exit 1
 fail=0
 check() { # name expected_exit script json
@@ -34,7 +34,7 @@ P=post-edit-format.sh
 check "post: empty path ignored"     0 $P '{"tool_input":{}}'
 check "post: missing file ignored"   0 $P "$(file_json Edit /repo/app/src/nope.ts)"
 check "post: unsupported file ok"    0 $P "$(file_json Edit "$(dirname "$0")/post-edit-format.sh")"
-tmp=$(cd ../.. && pwd)/app/src/__hook_test.ts
+tmp=$(cd ../../.. && pwd)/app/src/__hook_test.ts
 printf 'const  a = "x";\n' > "$tmp"
 trap 'rm -f "$tmp"' EXIT
 check "post: formats ts file"        0 $P "$(file_json Write "$tmp")"

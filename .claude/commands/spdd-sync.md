@@ -1,8 +1,6 @@
 ---
-name: /spdd-sync
-id: spdd-sync
-category: Development
-description: Sync code changes back to the structured SPDD prompt file following the REASONS Canvas methodology
+description: Sync code changes back to the structured SPDD prompt file following the
+  REASONS Canvas methodology
 ---
 
 Synchronize implementation details from refactored or updated code back to the structured SPDD (Structured Prompt-Driven Development) prompt file, ensuring the prompt remains the accurate source of truth for the system design.

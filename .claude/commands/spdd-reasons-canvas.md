@@ -1,8 +1,6 @@
 ---
-name: /spdd-reasons-canvas
-id: spdd-reasons-canvas
-category: Development
-description: Generate REASONS-Canvas structured prompts from business context without external template
+description: Generate REASONS-Canvas structured prompts from business context without
+  external template
 ---
 
 Generate implementation-ready structured prompts using the built-in REASONS-Canvas framework (Requirements, Entities, Approach, Structure, Operations, Norms, Safeguards).
