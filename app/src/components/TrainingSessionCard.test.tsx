@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '../types'
 import type {
   CancelResponse,
   RegistrationLookup,
@@ -26,6 +27,7 @@ const session: TrainingSession = {
   location: 'Room A',
   deliveryMode: 'online',
   status: 'active',
+  registrationDeadline: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 }
@@ -643,5 +645,110 @@ describe('TrainingSessionCard title link', () => {
 
     const link = screen.getByRole('link', { name: session.title })
     expect(link).toHaveAttribute('href', `/sessions/${session.id}`)
+  })
+})
+
+describe('TrainingSessionCard registration deadline', () => {
+  const NOW = new Date('2026-07-01T09:00:00Z')
+  const future = new Date(NOW.getTime() + 60 * 60 * 1000).toISOString()
+  const past = new Date(NOW.getTime() - 60 * 60 * 1000).toISOString()
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function renderCard(
+    overrides: Partial<TrainingSession>,
+    handlers: { onRegister?: ReturnType<typeof vi.fn>; onLookup?: ReturnType<typeof vi.fn> } = {}
+  ) {
+    return render(
+      <TrainingSessionCard
+        session={{ ...session, ...overrides }}
+        onRegister={handlers.onRegister ?? vi.fn()}
+        onCancel={vi.fn()}
+        onLookup={handlers.onLookup ?? vi.fn()}
+      />
+    )
+  }
+
+  it('shows the closing label and the Register button for a future deadline', () => {
+    renderCard({ registrationDeadline: future })
+
+    expect(screen.getByText(/^Registration closes:/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument()
+    expect(screen.queryByText('Registration closed')).not.toBeInTheDocument()
+  })
+
+  it('shows the closed state without form controls for a past deadline', () => {
+    renderCard({ registrationDeadline: past })
+
+    expect(screen.getByText('Registration closed')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /register|join waitlist/i })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/name/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Registration closes:/)).not.toBeInTheDocument()
+  })
+
+  it('shows neither label nor closed text without a deadline', () => {
+    renderCard({ registrationDeadline: null })
+
+    expect(screen.queryByText(/^Registration closes:/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Registration closed')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument()
+  })
+
+  it('shows the late-submit error and then the closed state after a 422', async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined })
+    const onRegister = vi
+      .fn()
+      .mockRejectedValue(new ApiError('Registration deadline has passed', 422))
+    renderCard({ registrationDeadline: future }, { onRegister })
+
+    await fillAndSubmit(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Registration for this session has closed'
+    )
+    expect(screen.getByText('Registration closed')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /register|join waitlist/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the form and its own message for a non-422 failure', async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined })
+    const onRegister = vi.fn().mockRejectedValue(new ApiError('Name is required', 400))
+    renderCard({ registrationDeadline: future }, { onRegister })
+
+    await fillAndSubmit(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Name is required')
+    expect(screen.queryByText('Registration closed')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument()
+  })
+
+  it('still shows the status line and Cancel button of a confirmed registration when closed', async () => {
+    window.localStorage.setItem('workshophub.registration.1', '1')
+    const onLookup = vi.fn().mockResolvedValue({ id: 1, sessionId: 1, status: 'confirmed' })
+    renderCard({ registrationDeadline: past }, { onLookup })
+
+    expect(await screen.findByText('Your registration: Confirmed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel Registration' })).toBeInTheDocument()
+    expect(screen.getByText('Registration closed')).toBeInTheDocument()
+  })
+
+  it('shows closed and not the waitlist hint for a full closed session', () => {
+    renderCard({ registrationDeadline: past, registered: 10 })
+
+    expect(screen.getByText('Registration closed')).toBeInTheDocument()
+    expect(screen.queryByText(/This session is full/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Join Waitlist' })).not.toBeInTheDocument()
   })
 })

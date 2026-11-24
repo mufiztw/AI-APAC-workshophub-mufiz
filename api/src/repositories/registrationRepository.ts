@@ -28,12 +28,26 @@ export type CreateRegistrationResult =
       capacity: number
     }
   | { status: 'not_found' }
+  | { status: 'deadline_passed' }
 
 async function claimSeatAndRegister(
   tx: Prisma.TransactionClient,
   sessionId: number,
   input: RegistrationInput
 ): Promise<CreateRegistrationResult> {
+  // The deadline is read inside the seat-claiming transaction so the cutoff and the seat claim
+  // are atomic. The comparison is strict: a deadline equal to now is still open.
+  const gate = await tx.trainingSession.findUnique({
+    where: { id: sessionId },
+    select: { registrationDeadline: true },
+  })
+  if (!gate) {
+    return { status: 'not_found' }
+  }
+  if (gate.registrationDeadline !== null && new Date() > gate.registrationDeadline) {
+    return { status: 'deadline_passed' }
+  }
+
   const updated = await tx.$executeRaw`
     UPDATE training_sessions
     SET registered = registered + 1

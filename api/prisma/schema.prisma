@@ -13,17 +13,18 @@ datasource db {
 }
 
 model TrainingSession {
-  id           Int      @id @default(autoincrement())
-  title        String
-  description  String
-  date         DateTime
-  capacity     Int
-  registered   Int      @default(0)
-  location     String
-  deliveryMode String
-  status       String   @default("active")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                   Int       @id @default(autoincrement())
+  title                String
+  description          String
+  date                 DateTime
+  registrationDeadline DateTime?
+  capacity             Int
+  registered           Int       @default(0)
+  location             String
+  deliveryMode         String
+  status               String    @default("active")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   registrations Registration[]
 

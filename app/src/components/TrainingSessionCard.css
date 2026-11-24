@@ -156,3 +156,16 @@
 .registration-form__message--error {
   color: var(--color-error);
 }
+
+.registration-form__deadline {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.registration-form__closed {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}

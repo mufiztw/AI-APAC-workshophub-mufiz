@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ApiError } from '../types'
 import type {
   CancelResponse,
   RegistrationLookup,
@@ -67,7 +68,7 @@ function TrainingSessionsPage() {
     })
     if (!res.ok) {
       const body: unknown = await res.json().catch(() => null)
-      throw new Error(errorMessageFrom(body) ?? `Registration failed: ${res.status}`)
+      throw new ApiError(errorMessageFrom(body) ?? `Registration failed: ${res.status}`, res.status)
     }
     const registration: RegistrationResponse = await res.json()
     if (registration.status === 'confirmed') {

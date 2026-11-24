@@ -1,6 +1,7 @@
 import { Registration } from '@prisma/client'
 import {
   RegistrationAlreadyCancelledError,
+  RegistrationDeadlinePassedError,
   RegistrationNotFoundError,
   SessionNotFoundError,
   ValidationError,
@@ -72,6 +73,8 @@ export async function registerForSession(
   switch (result.status) {
     case 'not_found':
       throw new SessionNotFoundError()
+    case 'deadline_passed':
+      throw new RegistrationDeadlinePassedError()
     case 'waitlisted':
       return {
         ...result.registration,

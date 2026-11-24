@@ -8,6 +8,7 @@ export interface TrainingSession {
   location: string
   deliveryMode: string
   status: string
+  registrationDeadline: string | null
   createdAt: string
   updatedAt: string
 }
@@ -56,4 +57,14 @@ export interface RegistrationEntry {
 export interface SessionRegistrations {
   confirmed: RegistrationEntry[]
   waitlisted: RegistrationEntry[]
+}
+
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
 }

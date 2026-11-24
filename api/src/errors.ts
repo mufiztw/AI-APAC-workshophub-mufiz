@@ -25,3 +25,10 @@ export class RegistrationAlreadyCancelledError extends Error {
     this.name = 'RegistrationAlreadyCancelledError'
   }
 }
+
+export class RegistrationDeadlinePassedError extends Error {
+  constructor() {
+    super('Registration deadline has passed')
+    this.name = 'RegistrationDeadlinePassedError'
+  }
+}
