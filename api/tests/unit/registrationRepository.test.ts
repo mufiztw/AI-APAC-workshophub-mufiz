@@ -5,6 +5,7 @@ const mockTx = {
   $executeRaw: jest.fn(),
   trainingSession: { findUnique: jest.fn() },
   registration: { create: jest.fn(), count: jest.fn() },
+  auditLog: { create: jest.fn() },
 }
 
 jest.mock('../../src/lib/prisma', () => ({

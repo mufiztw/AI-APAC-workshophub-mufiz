@@ -4,6 +4,7 @@ import { getAllSessions, getSessionById } from '../services/trainingSessionServi
 import {
   cancelRegistration,
   getRegistration,
+  getRegistrationAudit,
   getSessionRegistrations,
   registerForSession,
 } from '../services/registrationService'
@@ -174,6 +175,35 @@ router.get('/:id/registrations/:registrationId', async (req: Request, res: Respo
     }
     console.error('Error fetching registration:', error)
     res.status(500).json({ error: 'Failed to fetch registration' })
+  }
+})
+
+router.get('/:id/registrations/:registrationId/audit', async (req: Request, res: Response) => {
+  const sessionId = parseInt(req.params.id, 10)
+  if (isNaN(sessionId)) {
+    res.status(400).json({ error: 'Invalid session ID' })
+    return
+  }
+  const registrationId = parseInt(req.params.registrationId, 10)
+  if (isNaN(registrationId)) {
+    res.status(400).json({ error: 'Invalid registration ID' })
+    return
+  }
+
+  try {
+    const entries = await getRegistrationAudit(sessionId, registrationId)
+    res.status(200).json(entries)
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      res.status(400).json({ error: error.message })
+      return
+    }
+    if (error instanceof RegistrationNotFoundError) {
+      res.status(404).json({ error: error.message })
+      return
+    }
+    console.error('Error fetching registration audit history:', error)
+    res.status(500).json({ error: 'Failed to fetch registration audit history' })
   }
 })
 

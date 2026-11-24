@@ -8,6 +8,7 @@ async function main() {
   const now = Date.now()
   console.log('Seeding training sessions...')
 
+  await prisma.auditLog.deleteMany()
   await prisma.registration.deleteMany()
   await prisma.trainingSession.deleteMany()
 
