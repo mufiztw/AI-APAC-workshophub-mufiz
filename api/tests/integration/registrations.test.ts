@@ -4,7 +4,11 @@ import prisma from '../../src/lib/prisma'
 
 const createdSessionIds: number[] = []
 
-async function createSession(capacity: number, registered = 0): Promise<number> {
+async function createSession(
+  capacity: number,
+  registered = 0,
+  registrationDeadline: Date | null = null
+): Promise<number> {
   const session = await prisma.trainingSession.create({
     data: {
       title: 'LATC-2 test session',
@@ -12,6 +16,7 @@ async function createSession(capacity: number, registered = 0): Promise<number> 
       date: new Date('2030-01-01T09:00:00Z'),
       capacity,
       registered,
+      registrationDeadline,
       location: 'Test room',
       deliveryMode: 'online',
     },
@@ -724,5 +729,61 @@ describe('notifications (LATC-8)', () => {
       registered: 1,
       capacity: 1,
     })
+  })
+})
+
+describe('registration deadline', () => {
+  const HOUR_MS = 60 * 60 * 1000
+
+  it('returns 201 before the deadline', async () => {
+    const id = await createSession(5, 0, new Date(Date.now() + HOUR_MS))
+    const response = await post(id, validBody)
+    expect(response.status).toBe(201)
+  })
+
+  it('returns 422 after the deadline and changes nothing', async () => {
+    const id = await createSession(5, 0, new Date(Date.now() - HOUR_MS))
+
+    const response = await post(id, validBody)
+
+    expect(response.status).toBe(422)
+    expect(response.body).toEqual({ error: 'Registration deadline has passed' })
+    expect(await getRegistered(id)).toBe(0)
+    expect(await prisma.registration.count({ where: { sessionId: id } })).toBe(0)
+  })
+
+  it('returns 201 when the session has no deadline', async () => {
+    const id = await createSession(5)
+    const response = await post(id, validBody)
+    expect(response.status).toBe(201)
+  })
+
+  it('returns 422, not 202, for a full session past its deadline', async () => {
+    const id = await createSession(1, 1, new Date(Date.now() - HOUR_MS))
+
+    const response = await post(id, validBody)
+
+    expect(response.status).toBe(422)
+    expect(await prisma.registration.count({ where: { sessionId: id } })).toBe(0)
+  })
+
+  it('returns 400 for an invalid body on a closed session', async () => {
+    const id = await createSession(5, 0, new Date(Date.now() - HOUR_MS))
+    const response = await post(id, {})
+    expect(response.status).toBe(400)
+  })
+
+  it('exposes registrationDeadline as an ISO string or null in the listing', async () => {
+    const deadline = new Date(Date.now() + HOUR_MS)
+    const withDeadline = await createSession(5, 0, deadline)
+    const withoutDeadline = await createSession(5)
+
+    const response = await request(app).get('/api/training-sessions')
+
+    const byId = new Map<number, { registrationDeadline: string | null }>(
+      response.body.map((s: { id: number; registrationDeadline: string | null }) => [s.id, s])
+    )
+    expect(byId.get(withDeadline)?.registrationDeadline).toBe(deadline.toISOString())
+    expect(byId.get(withoutDeadline)?.registrationDeadline).toBeNull()
   })
 })

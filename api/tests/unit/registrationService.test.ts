@@ -1,7 +1,11 @@
 import { registerForSession } from '../../src/services/registrationService'
 import { createRegistration } from '../../src/repositories/registrationRepository'
 import { notifyRegistration } from '../../src/services/notificationService'
-import { SessionNotFoundError, ValidationError } from '../../src/errors'
+import {
+  RegistrationDeadlinePassedError,
+  SessionNotFoundError,
+  ValidationError,
+} from '../../src/errors'
 
 jest.mock('../../src/repositories/registrationRepository', () => ({
   createRegistration: jest.fn(),
@@ -215,5 +219,23 @@ describe('registerForSession notification (LATC-8)', () => {
     ).rejects.toBeInstanceOf(SessionNotFoundError)
 
     expect(mockNotify).not.toHaveBeenCalled()
+  })
+})
+
+describe('registerForSession registration deadline', () => {
+  it('rejects with RegistrationDeadlinePassedError and sends no notification', async () => {
+    mockCreate.mockResolvedValue({ status: 'deadline_passed' })
+
+    await expect(
+      registerForSession(7, { name: 'Ada', email: 'ada@example.com' })
+    ).rejects.toBeInstanceOf(RegistrationDeadlinePassedError)
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  it('still rejects an invalid body with ValidationError before the repository is called', async () => {
+    mockCreate.mockResolvedValue({ status: 'deadline_passed' })
+
+    await expect(registerForSession(7, {})).rejects.toBeInstanceOf(ValidationError)
+    expect(mockCreate).not.toHaveBeenCalled()
   })
 })

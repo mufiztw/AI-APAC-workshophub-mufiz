@@ -2,7 +2,10 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 async function main() {
+  const now = Date.now()
   console.log('Seeding training sessions...')
 
   await prisma.registration.deleteMany()
@@ -15,6 +18,7 @@ async function main() {
         description:
           'An introduction to integrating AI tools into the software delivery lifecycle. Covers prompt engineering, AI-assisted TDD, code review automation, and responsible AI usage in engineering teams.',
         date: new Date('2026-07-15T09:00:00Z'),
+        registrationDeadline: new Date(now + 30 * DAY_MS),
         capacity: 20,
         registered: 0,
         location: 'Training Room A, Level 3',
@@ -26,6 +30,7 @@ async function main() {
         description:
           'Hands-on workshop exploring test-driven development when working with AI coding agents. Learn how to write failing tests first, guide agent suggestions, and maintain a green test suite throughout the agentic loop.',
         date: new Date('2026-07-22T09:00:00Z'),
+        registrationDeadline: new Date(now - 1 * DAY_MS),
         capacity: 24,
         registered: 0,
         location: 'Virtual — Zoom',

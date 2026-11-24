@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ApiError } from '../types'
 import type {
   CancelResponse,
   RegistrationLookup,
@@ -59,6 +60,10 @@ function formatDate(dateStr: string): string {
   })
 }
 
+function formatDeadline(dateStr: string): string {
+  return new Date(dateStr).toLocaleString('en-SG', { dateStyle: 'long', timeStyle: 'short' })
+}
+
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString('en-SG', {
     hour: '2-digit',
@@ -89,6 +94,11 @@ function TrainingSessionCard({ session, onRegister, onCancel, onLookup }: Props)
   } | null>(null)
   const [position, setPosition] = useState<number | undefined>(undefined)
   const [cancelling, setCancelling] = useState(false)
+  const [closedByServer, setClosedByServer] = useState(false)
+  const deadlineMs =
+    session.registrationDeadline !== null ? new Date(session.registrationDeadline).getTime() : null
+  const isClosedByClock = deadlineMs !== null && Date.now() > deadlineMs
+  const registrationClosed = isClosedByClock || closedByServer
   const storageKey = `workshophub.registration.${session.id}`
 
   // The parent recreates onLookup on every render; keep the latest one in a ref so the
@@ -128,7 +138,12 @@ function TrainingSessionCard({ session, onRegister, onCancel, onLookup }: Props)
       setName('')
       setEmail('')
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Registration failed')
+      if (err instanceof ApiError && err.status === 422) {
+        setClosedByServer(true)
+        setErrorMessage('Registration for this session has closed')
+      } else {
+        setErrorMessage(err instanceof Error ? err.message : 'Registration failed')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -197,22 +212,38 @@ function TrainingSessionCard({ session, onRegister, onCancel, onLookup }: Props)
       </div>
 
       <form className="registration-form" onSubmit={handleSubmit}>
-        {isFull && (
-          <p className="registration-form__hint">
-            This session is full. Join the waitlist and we will keep your place in line.
-          </p>
+        {registrationClosed ? (
+          <p className="registration-form__closed">Registration closed</p>
+        ) : (
+          <>
+            {isFull && (
+              <p className="registration-form__hint">
+                This session is full. Join the waitlist and we will keep your place in line.
+              </p>
+            )}
+            <label className="registration-form__field">
+              Name
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+            </label>
+            <label className="registration-form__field">
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </label>
+            {session.registrationDeadline !== null && (
+              <p className="registration-form__deadline">
+                Registration closes: {formatDeadline(session.registrationDeadline)}
+              </p>
+            )}
+            <button type="submit" className="registration-form__button" disabled={submitting}>
+              {isFull ? 'Join Waitlist' : 'Register'}
+            </button>
+          </>
         )}
-        <label className="registration-form__field">
-          Name
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
-        <label className="registration-form__field">
-          Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <button type="submit" className="registration-form__button" disabled={submitting}>
-          {isFull ? 'Join Waitlist' : 'Register'}
-        </button>
         {registration?.status === 'confirmed' && (
           <button
             type="button"

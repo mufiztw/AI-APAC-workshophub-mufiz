@@ -9,6 +9,7 @@ import {
 } from '../services/registrationService'
 import {
   RegistrationAlreadyCancelledError,
+  RegistrationDeadlinePassedError,
   RegistrationNotFoundError,
   SessionNotFoundError,
   ValidationError,
@@ -103,6 +104,10 @@ router.post('/:id/registrations', async (req: Request, res: Response) => {
     }
     if (error instanceof SessionNotFoundError) {
       res.status(404).json({ error: error.message })
+      return
+    }
+    if (error instanceof RegistrationDeadlinePassedError) {
+      res.status(422).json({ error: error.message })
       return
     }
     console.error('Error registering for training session:', error)

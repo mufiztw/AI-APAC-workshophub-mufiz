@@ -28,6 +28,7 @@ const session: TrainingSession = {
   location: 'Room A',
   deliveryMode: 'online',
   status: 'active',
+  registrationDeadline: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 }
@@ -149,6 +150,20 @@ describe('TrainingSessionsPage registration', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Name is required')
     expect(screen.getByText(/4 \/ 10 registered/)).toBeInTheDocument()
+  })
+
+  it('shows the closed message and hides the form when the server answers 422', async () => {
+    const user = userEvent.setup()
+    mockFetch(jsonResponse(422, { error: 'Registration deadline has passed' }))
+    render(<TrainingSessionsPage />)
+
+    await register(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Registration for this session has closed'
+    )
+    expect(screen.getByText('Registration closed')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /register/i })).not.toBeInTheDocument()
   })
 
   it('falls back to a generic message when the error body is not JSON', async () => {
