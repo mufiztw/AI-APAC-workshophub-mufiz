@@ -1,0 +1,183 @@
+lockfile_version: '4'
+apm_version: 0.37.0
+manifest_targets:
+- claude
+dependencies: []
+deployments:
+- kind: project-relative
+  target: claude
+  value: .claude/agents/implementer.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:a691ca24c908448bbf717e7c5a4417ba459121381707270d7fd87f29cf38aff2
+- kind: project-relative
+  target: claude
+  value: .claude/agents/planner.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:83a204dea744fc3c0fd2f809b342b96e9dcdc3f872ecfdb283e152627cafcfa9
+- kind: project-relative
+  target: claude
+  value: .claude/agents/reviewer.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:920f435d86251f06af836bb5a479db9e3a4bada57bab6d986d74001a1c654a29
+- kind: project-relative
+  target: claude
+  value: .claude/agents/test-writer.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:044b0b02644b29c8c27b74e98b7ea44bd852d8119081564875529d7057eba038
+- kind: project-relative
+  target: claude
+  value: .claude/commands/finish-dev.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:dbe4c6d4fa327b21de71e083de05b39043ebebb7639136c314458e3bcf57f0f1
+- kind: project-relative
+  target: claude
+  value: .claude/commands/kickoff.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:e451d852db304d5a61bb24081ff62baa4d64037166319a7a5c36142b5a0dd4c6
+- kind: project-relative
+  target: claude
+  value: .claude/commands/sensor-and-fix.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:e55876837cb440886baa2d77bd2a81f92573aa866b34a032dd7d2a47eeb460d8
+- kind: project-relative
+  target: claude
+  value: .claude/commands/spdd-analysis.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:b4fa138f71ce01dc5a045ac8cb1121ec7dd2d83897b772a0abd2c764dc77aad8
+- kind: project-relative
+  target: claude
+  value: .claude/commands/spdd-api-test.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:00f8df224cd419ce5248d889d35ffa985cc475ddfc8d2dc3e9e99b26b4c7f825
+- kind: project-relative
+  target: claude
+  value: .claude/commands/spdd-generate.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:fc60c66188624b6a37fd0b5bee12dec7df6e84d4f840cf85f7175b14d886eb7e
+- kind: project-relative
+  target: claude
+  value: .claude/commands/spdd-prompt-update.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:3ca00ddabee8244cc831bdf6f01cf672537dbd7009cfcda2fd46a15d09e73040
+- kind: project-relative
+  target: claude
+  value: .claude/commands/spdd-reasons-canvas.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6da5928859e9909163565f9c10c11eda67e77928d745789a7057aa1bf766e61b
+- kind: project-relative
+  target: claude
+  value: .claude/commands/spdd-story.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:cdedb8ff0c36d53530d7bba2988254a01cb481f30380285c0cf4232034d1abf3
+- kind: project-relative
+  target: claude
+  value: .claude/commands/spdd-sync.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2b1ab182b215244f263cb8eca9251225230287eb3ad0a5b1a525fc745bd85081
+- kind: project-relative
+  target: claude
+  value: .claude/skills/commit
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/commit/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:e182bd19386a38a6a60473412d48ea02b47fc894e7ad17e6f68583a7d699a042
+local_deployed_files:
+- .claude/agents/implementer.md
+- .claude/agents/planner.md
+- .claude/agents/reviewer.md
+- .claude/agents/test-writer.md
+- .claude/commands/finish-dev.md
+- .claude/commands/kickoff.md
+- .claude/commands/sensor-and-fix.md
+- .claude/commands/spdd-analysis.md
+- .claude/commands/spdd-api-test.md
+- .claude/commands/spdd-generate.md
+- .claude/commands/spdd-prompt-update.md
+- .claude/commands/spdd-reasons-canvas.md
+- .claude/commands/spdd-story.md
+- .claude/commands/spdd-sync.md
+- .claude/skills/commit
+- .claude/skills/commit/SKILL.md
+local_deployed_file_hashes:
+  .claude/agents/implementer.md: sha256:a691ca24c908448bbf717e7c5a4417ba459121381707270d7fd87f29cf38aff2
+  .claude/agents/planner.md: sha256:83a204dea744fc3c0fd2f809b342b96e9dcdc3f872ecfdb283e152627cafcfa9
+  .claude/agents/reviewer.md: sha256:920f435d86251f06af836bb5a479db9e3a4bada57bab6d986d74001a1c654a29
+  .claude/agents/test-writer.md: sha256:044b0b02644b29c8c27b74e98b7ea44bd852d8119081564875529d7057eba038
+  .claude/commands/finish-dev.md: sha256:dbe4c6d4fa327b21de71e083de05b39043ebebb7639136c314458e3bcf57f0f1
+  .claude/commands/kickoff.md: sha256:e451d852db304d5a61bb24081ff62baa4d64037166319a7a5c36142b5a0dd4c6
+  .claude/commands/sensor-and-fix.md: sha256:e55876837cb440886baa2d77bd2a81f92573aa866b34a032dd7d2a47eeb460d8
+  .claude/commands/spdd-analysis.md: sha256:b4fa138f71ce01dc5a045ac8cb1121ec7dd2d83897b772a0abd2c764dc77aad8
+  .claude/commands/spdd-api-test.md: sha256:00f8df224cd419ce5248d889d35ffa985cc475ddfc8d2dc3e9e99b26b4c7f825
+  .claude/commands/spdd-generate.md: sha256:fc60c66188624b6a37fd0b5bee12dec7df6e84d4f840cf85f7175b14d886eb7e
+  .claude/commands/spdd-prompt-update.md: sha256:3ca00ddabee8244cc831bdf6f01cf672537dbd7009cfcda2fd46a15d09e73040
+  .claude/commands/spdd-reasons-canvas.md: sha256:6da5928859e9909163565f9c10c11eda67e77928d745789a7057aa1bf766e61b
+  .claude/commands/spdd-story.md: sha256:cdedb8ff0c36d53530d7bba2988254a01cb481f30380285c0cf4232034d1abf3
+  .claude/commands/spdd-sync.md: sha256:2b1ab182b215244f263cb8eca9251225230287eb3ad0a5b1a525fc745bd85081
+  .claude/skills/commit/SKILL.md: sha256:e182bd19386a38a6a60473412d48ea02b47fc894e7ad17e6f68583a7d699a042

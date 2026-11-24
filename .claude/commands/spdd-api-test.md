@@ -1,8 +1,6 @@
 ---
-name: /spdd-api-test
-id: spdd-api-test
-category: Testing
-description: Generate a self-contained shell script with cURL commands to test API endpoints based on generated code and acceptance criteria
+description: Generate a self-contained shell script with cURL commands to test API
+  endpoints based on generated code and acceptance criteria
 ---
 
 Generate a comprehensive, self-contained shell script (`scripts/test-api.sh`) with cURL commands to test all API scenarios defined in the codebase or acceptance criteria.

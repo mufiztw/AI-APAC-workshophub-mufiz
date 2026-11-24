@@ -1,8 +1,6 @@
 ---
-name: /spdd-generate
-id: spdd-generate
-category: Development
-description: Generate code from a structured SPDD prompt file following the REASONS Canvas methodology
+description: Generate code from a structured SPDD prompt file following the REASONS
+  Canvas methodology
 ---
 
 Generate implementation code from a structured SPDD (Structured Prompt-Driven Development) prompt file, strictly following the Operations sequence and coding norms defined in the prompt.

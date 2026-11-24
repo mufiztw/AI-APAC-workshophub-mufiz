@@ -56,7 +56,7 @@ Two MCP servers are enabled for this repo: `jira` and `github`.
 
 What AI agents may and may not do in this repo:
 
-- **`.env` files and secrets are strictly off-limits.** Agents must not read, edit, copy, stage, or commit them (use `.env.example` for reference). This is enforced by the PreToolUse hook `.claude/hooks/pre-tool-guard.sh`.
+- **`.env` files and secrets are strictly off-limits.** Agents must not read, edit, copy, stage, or commit them (use `.env.example` for reference). This is enforced by the PreToolUse hook `.apm/hooks/scripts/pre-tool-guard.sh`.
 - **The `planner` and `reviewer` subagents are read-only.** They inspect code and report; they never modify files, stage, or commit.
 - **All production changes follow Red-Green-Refactor TDD.** Write a failing test first, then the minimal code to pass, then refactor.
 - **Agents never push to a remote.** Pushing is a human action.

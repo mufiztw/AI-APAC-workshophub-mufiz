@@ -2,3 +2,7 @@
 reference.sh
 node_modules/
 dist/
+
+
+# APM dependencies
+apm_modules/

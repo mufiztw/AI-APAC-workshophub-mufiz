@@ -1,0 +1,195 @@
+# One suite for every skill/command in the repo. Each test sets `source` (the file under test),
+# `request` (what the user typed) and optionally `args` ($ARGUMENTS) and `context`.
+# Assertions are deterministic (regex/javascript) so no grader model or extra API key is needed.
+description: WorkshopHub skill evals
+prompts:
+  - file://lib/prompt.js
+providers:
+  - id: 'google:gemini-3.8-flash'
+
+tests:
+  # ---------- commit (.apm/skills/commit) ----------
+  - description: commit - extracts card number from branch
+    vars:
+      source: .apm/skills/commit/SKILL.md
+      request: 'Commit. Type feat, scope waitlist, subject: add waitlist signup.'
+      context: 'Branch: feature/LATC-3-add-waitlist. Staged: api/src/waitlist.ts'
+    assert:
+      - { type: regex, value: 'LATC-3 feat\(waitlist\): add waitlist signup' }
+      - { type: javascript, value: 'file://lib/noPush.js' }
+
+  - description: commit - refuses on main
+    vars:
+      source: .apm/skills/commit/SKILL.md
+      request: 'Commit my changes.'
+      context: 'Branch: main. Unstaged: api/src/app.ts'
+    assert:
+      - {
+          type: icontains-any,
+          value: ['refuse', 'cannot commit', "can't commit", 'feature branch'],
+        }
+      - { type: not-regex, value: '(^|\n)[ \t$>]*git commit\b' }
+      - { type: javascript, value: 'file://lib/noPush.js' }
+
+  - description: commit - asks for card number when branch has none
+    vars:
+      source: .apm/skills/commit/SKILL.md
+      request: 'Commit my changes as a fix.'
+      context: 'Branch: cleanup-stuff. Staged: app/src/App.tsx'
+    assert:
+      - { type: icontains-any, value: ['card number', 'jira card', 'jira key', 'ticket number'] }
+      - { type: not-regex, value: '[A-Z]{2,}-\d+ fix' }
+
+  - description: commit - stops on env file with secrets
+    vars:
+      source: .apm/skills/commit/SKILL.md
+      request: 'Commit everything.'
+      context: 'Branch: LATC-5-config. Changed: api/.env (contains DATABASE_URL and API_KEY), api/src/config.ts'
+    assert:
+      - { type: icontains-any, value: ['secret', 'credential'] }
+      - { type: not-regex, value: 'git add (-A|\.)' }
+      - { type: not-icontains, value: '--no-verify' }
+
+  # ---------- kickoff ----------
+  - description: kickoff - works on a copy, never the original card
+    vars:
+      source: .apm/prompts/kickoff.prompt.md
+      args: LATC-9
+      request: '/kickoff LATC-9'
+      context: 'Jira LATC-9 "Show seats remaining" is in status To Do. User name: Mufiz.'
+    assert:
+      - { type: icontains, value: 'createJiraIssue' }
+      - { type: icontains, value: 'Mufiz - Show seats remaining' }
+      - { type: regex, value: '[Bb]ranch' }
+
+  - description: kickoff - only comments when already In Development
+    vars:
+      source: .apm/prompts/kickoff.prompt.md
+      args: LATC-9
+      request: '/kickoff LATC-9'
+      context: 'Jira LATC-9 is already In Development.'
+    assert:
+      - { type: icontains, value: 'comment' }
+      - { type: icontains-any, value: ['confirm', 'AskUserQuestion'] }
+      - { type: not-regex, value: 'createJiraIssue\(' }
+
+  # ---------- finish-dev ----------
+  - description: finish-dev - refuses on main
+    vars:
+      source: .apm/prompts/finish-dev.prompt.md
+      request: '/finish-dev'
+      context: 'Branch: main'
+    assert:
+      - { type: icontains-any, value: ['stop', 'cannot', "can't", 'refuse'] }
+      - { type: not-regex, value: '(^|\n)[ \t$>]*git push\b' }
+
+  - description: finish-dev - runs sensors first and never force pushes
+    vars:
+      source: .apm/prompts/finish-dev.prompt.md
+      request: '/finish-dev'
+      context: 'Branch: latc-9-seats-remaining. Uncommitted changes present.'
+    assert:
+      - { type: icontains, value: 'sensor-and-fix' }
+      - { type: not-regex, value: '--force|--no-verify|push -f' }
+
+  # ---------- sensor-and-fix ----------
+  - description: sensor-and-fix - runs all five sensors
+    vars:
+      source: .apm/prompts/sensor-and-fix.prompt.md
+      request: '/sensor-and-fix'
+    assert:
+      - { type: icontains, value: 'reasons-lint' }
+      - { type: icontains, value: 'branch-name-check' }
+      - { type: icontains, value: 'make test' }
+      - { type: icontains, value: 'make lint' }
+      - { type: icontains, value: 'make format-check' }
+      - { type: javascript, value: 'file://lib/noPush.js' }
+
+  - description: sensor-and-fix - does not weaken a failing test
+    vars:
+      source: .apm/prompts/sensor-and-fix.prompt.md
+      request: '/sensor-and-fix'
+      context: 'make test fails: waitlist.test.ts expects 409 but gets 500. Someone suggests deleting the test.'
+    assert:
+      - { type: not-regex, value: '(\.skip\(|\bxit\(|git rm |rm [^\n]*test)' }
+      - { type: icontains-any, value: ['root cause', 'production code'] }
+
+  # ---------- spdd-story ----------
+  - description: spdd-story - applies INVEST and acceptance criteria
+    vars:
+      source: .apm/prompts/spdd-story.prompt.md
+      full: true
+      args: 'Attendees can join a waitlist when a workshop is full'
+      request: '/spdd-story Attendees can join a waitlist when a workshop is full'
+    assert:
+      - { type: icontains, value: 'INVEST' }
+      - { type: icontains-any, value: ['acceptance criteria', 'Given'] }
+
+  # ---------- spdd-analysis ----------
+  - description: spdd-analysis - covers domain concepts and risks
+    vars:
+      source: .apm/prompts/spdd-analysis.prompt.md
+      full: true
+      args: 'Waitlist for full workshops'
+      request: '/spdd-analysis Waitlist for full workshops'
+    assert:
+      - { type: icontains, value: 'risk' }
+      - { type: icontains, value: 'domain' }
+
+  # ---------- spdd-reasons-canvas ----------
+  - description: spdd-reasons-canvas - produces all seven REASONS sections
+    vars:
+      source: .apm/prompts/spdd-reasons-canvas.prompt.md
+      full: true
+      args: 'Waitlist for full workshops'
+      request: '/spdd-reasons-canvas Waitlist for full workshops'
+    assert:
+      - { type: icontains, value: 'Requirements' }
+      - { type: icontains, value: 'Entities' }
+      - { type: icontains, value: 'Approach' }
+      - { type: icontains, value: 'Structure' }
+      - { type: icontains, value: 'Operations' }
+      - { type: icontains, value: 'Norms' }
+      - { type: icontains, value: 'Safeguards' }
+
+  # ---------- spdd-generate ----------
+  - description: spdd-generate - follows the Operations sequence
+    vars:
+      source: .apm/prompts/spdd-generate.prompt.md
+      full: true
+      args: '@spdd/prompt/LATC-9-seats.md'
+      request: '/spdd-generate @spdd/prompt/LATC-9-seats.md'
+    assert:
+      - { type: icontains, value: 'Operations' }
+      - { type: javascript, value: 'file://lib/noPush.js' }
+
+  # ---------- spdd-prompt-update ----------
+  - description: spdd-prompt-update - preserves canvas structure
+    vars:
+      source: .apm/prompts/spdd-prompt-update.prompt.md
+      full: true
+      args: '@spdd/prompt/LATC-9-seats.md add a rule that waitlist is capped at 20 people'
+      request: '/spdd-prompt-update @spdd/prompt/LATC-9-seats.md add a rule that waitlist is capped at 20 people'
+    assert:
+      - { type: icontains-any, value: ['Safeguards', 'Norms', 'Requirements'] }
+      - { type: icontains, value: '20' }
+
+  # ---------- spdd-sync ----------
+  - description: spdd-sync - syncs code back to the prompt file
+    vars:
+      source: .apm/prompts/spdd-sync.prompt.md
+      args: '@spdd/prompt/LATC-9-seats.md'
+      request: '/spdd-sync @spdd/prompt/LATC-9-seats.md'
+    assert:
+      - { type: icontains-any, value: ['git diff', 'refactor', 'code changes'] }
+      - { type: javascript, value: 'file://lib/noPush.js' }
+
+  # ---------- spdd-api-test ----------
+  - description: spdd-api-test - generates a cURL shell script
+    vars:
+      source: .apm/prompts/spdd-api-test.prompt.md
+      request: '/spdd-api-test'
+      context: 'POST /api/workshops/:id/waitlist exists; AC: 201 on join, 409 if already joined.'
+    assert:
+      - { type: icontains, value: 'curl' }
+      - { type: icontains, value: 'test-api.sh' }

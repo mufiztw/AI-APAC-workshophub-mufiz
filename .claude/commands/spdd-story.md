@@ -1,8 +1,6 @@
 ---
-name: /spdd-story
-id: spdd-story
-category: Development
-description: Decompose high-level feature requirements into INVEST-compliant, business-focused stories with clear scope boundaries and testable acceptance criteria
+description: Decompose high-level feature requirements into INVEST-compliant, business-focused
+  stories with clear scope boundaries and testable acceptance criteria
 ---
 
 Decompose high-level feature requirements into structured, business-focused development stories. Each story is independently deliverable, scoped to 1-5 days of work, and includes concrete acceptance criteria written in business language. Stories are split according to the INVEST principle and serve as input for the SPDD workflow (`/spdd-analysis` → `/spdd-reasons-canvas` → `/spdd-generate`). This command focuses on the **"What"** and **"For whom"** — technical analysis and implementation details are left to downstream SPDD phases.

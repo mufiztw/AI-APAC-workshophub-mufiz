@@ -1,7 +1,10 @@
 ---
-description: Kick off work on a Jira card, save the story to ./stories, create a working branch, and hand off to /spdd-analysis
+allowed-tools: AskUserQuestion, Bash, Write, mcp__jira__getJiraIssue, mcp__jira__editJiraIssue,
+  mcp__jira__createJiraIssue, mcp__jira__transitionJiraIssue, mcp__jira__atlassianUserInfo,
+  mcp__jira__addOrEditJiraIssueComment
 argument-hint: <jira-card-key, e.g. LATC-2>
-allowed-tools: AskUserQuestion, Bash, Write, mcp__jira__getJiraIssue, mcp__jira__editJiraIssue, mcp__jira__createJiraIssue, mcp__jira__transitionJiraIssue, mcp__jira__atlassianUserInfo, mcp__jira__addOrEditJiraIssueComment
+description: Kick off work on a Jira card, save the story to ./stories, create a working
+  branch, and hand off to /spdd-analysis
 ---
 
 # Kickoff
