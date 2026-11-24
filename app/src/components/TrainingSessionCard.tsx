@@ -122,11 +122,6 @@ function TrainingSessionCard({ session, onRegister, onCancel, onLookup }: Props)
     setErrorMessage(null)
     try {
       const result = await onRegister({ name, email })
-      setConfirmation(
-        result.status === 'waitlisted'
-          ? `You are on the waitlist for ${session.title} at position ${result.position}. Your place is not confirmed.`
-          : `You are registered for ${session.title}.`
-      )
       setRegistration({ id: result.id, status: result.status })
       setPosition(result.position)
       storeId(storageKey, result.id)

@@ -1,4 +1,11 @@
-import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
@@ -100,7 +107,7 @@ describe('TrainingSessionsPage registration', () => {
     await register(user)
 
     expect(await screen.findByText(/5 \/ 10 registered/)).toBeInTheDocument()
-    expect(await screen.findByRole('status')).toHaveTextContent(/registered for/i)
+    expect(await screen.findByText('Your registration: Confirmed')).toBeInTheDocument()
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
     expect(post?.[0]).toBe('/api/training-sessions/5/registrations')
     expect(post?.[1]?.body).toBe(JSON.stringify({ name: 'Ada Lovelace', email: 'ada@example.com' }))
@@ -125,10 +132,9 @@ describe('TrainingSessionsPage registration', () => {
 
     await register(user)
 
-    const status = await screen.findByRole('status')
-    expect(status).toHaveTextContent(/waitlist/i)
-    expect(status).toHaveTextContent('2')
-    expect(status).toHaveTextContent(/not confirmed/i)
+    expect(
+      await screen.findByText('Your registration: Waitlisted (position 2)')
+    ).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText(/4 \/ 10 registered/)).toBeInTheDocument()
     expect(screen.queryByText(/10 \/ 10 registered/)).not.toBeInTheDocument()
@@ -278,5 +284,168 @@ describe('TrainingSessionsPage registration lookup', () => {
     await waitFor(() =>
       expect(window.localStorage.getItem('workshophub.registration.5')).toBeNull()
     )
+  })
+})
+
+describe('TrainingSessionsPage notification banner', () => {
+  const secondSession: TrainingSession = { ...session, id: 6, title: 'Second Workshop' }
+
+  const confirmedBody = {
+    id: 1,
+    sessionId: 5,
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+    status: 'confirmed',
+    createdAt: '2026-07-01T00:00:00Z',
+    registered: 5,
+    capacity: 10,
+  }
+  const waitlistedBody = { ...confirmedBody, id: 2, status: 'waitlisted', position: 2 }
+
+  const expectedDate = new Date(session.date).toLocaleDateString('en-SG', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  // testing-library's waitFor spins the fake clock, which would expire banner timers early.
+  // So form lookup uses real timers; setTimeout is faked only around the submit click, and
+  // outcomes are awaited with flush() (macrotask ticks inside act) followed by sync queries.
+  async function flush(times = 5) {
+    for (let i = 0; i < times; i++) {
+      await act(async () => {
+        await new Promise<void>((resolve) => setImmediate(resolve))
+      })
+    }
+  }
+
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms)
+    })
+  }
+
+  function mockSequence(sessions: TrainingSession[], posts: Response[]) {
+    const queue = [...posts]
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const next = queue.shift()
+        if (!next) throw new Error('unexpected POST')
+        return Promise.resolve(next)
+      }
+      return Promise.resolve(jsonResponse(200, sessions))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+  }
+
+  async function fillCard(index: number) {
+    const user = userEvent.setup({ delay: null })
+    const names = await screen.findAllByLabelText(/name/i)
+    const emails = screen.getAllByLabelText(/email/i)
+    await user.type(names[index], 'Ada Lovelace')
+    await user.type(emails[index], 'ada@example.com')
+  }
+
+  async function submitCard(index: number) {
+    // fireEvent: user-event goes through testing-library's asyncWrapper, which awaits a
+    // setTimeout and would hang while setTimeout is faked.
+    fireEvent.click(screen.getAllByRole('button', { name: /^(register|join waitlist)/i })[index])
+    await flush()
+  }
+
+  // Fills the form(s) with real timers, then fakes setTimeout and submits the given card.
+  async function registerOnCard(index: number) {
+    await fillCard(index)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await submitCard(index)
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('shows the registered banner with session title and long en-SG date, without reload', async () => {
+    mockSequence([session], [jsonResponse(201, confirmedBody)])
+    render(<TrainingSessionsPage />)
+
+    await registerOnCard(0)
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      `You're registered! ${session.title} on ${expectedDate}`
+    )
+  })
+
+  it('shows the waitlisted banner text', async () => {
+    mockSequence([session], [jsonResponse(202, waitlistedBody)])
+    render(<TrainingSessionsPage />)
+
+    await registerOnCard(0)
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      `You're on the waitlist for ${session.title}. We'll let you know if a spot opens up.`
+    )
+  })
+
+  it('keeps the banner until 5000 ms have elapsed, then removes it', async () => {
+    mockSequence([session], [jsonResponse(201, confirmedBody)])
+    render(<TrainingSessionsPage />)
+    await registerOnCard(0)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+
+    await advance(4999)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+
+    await advance(1)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('removes the banner when Dismiss is clicked', async () => {
+    mockSequence([session], [jsonResponse(201, confirmedBody)])
+    render(<TrainingSessionsPage />)
+    await registerOnCard(0)
+    const banner = screen.getByRole('status')
+
+    fireEvent.click(within(banner).getByRole('button', { name: /dismiss/i }))
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('replaces the first banner on a second registration and restarts the timer', async () => {
+    mockSequence(
+      [session, secondSession],
+      [jsonResponse(201, confirmedBody), jsonResponse(202, { ...waitlistedBody, sessionId: 6 })]
+    )
+    render(<TrainingSessionsPage />)
+    await fillCard(0)
+    await fillCard(1)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await submitCard(0)
+    expect(screen.getByRole('status')).toHaveTextContent(`You're registered! ${session.title}`)
+
+    await advance(3000)
+    await submitCard(1)
+
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      `You're on the waitlist for ${secondSession.title}`
+    )
+    expect(screen.queryByText(/You're registered!/)).not.toBeInTheDocument()
+
+    await advance(3000)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+
+    await advance(2000)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('shows no banner when registration fails but still shows the inline error', async () => {
+    mockSequence([session], [jsonResponse(400, { error: 'Name is required' })])
+    render(<TrainingSessionsPage />)
+
+    await registerOnCard(0)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Name is required')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })
