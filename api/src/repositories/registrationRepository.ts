@@ -1,4 +1,4 @@
-import { Prisma, Registration } from '@prisma/client'
+import { Prisma, Registration, TrainingSession } from '@prisma/client'
 import prisma from '../lib/prisma'
 
 // SQLite serialises writers, so concurrent registrations queue for the write lock.
@@ -240,4 +240,13 @@ export async function listSessionRegistrations(
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   })
   return { status: 'found', registrations }
+}
+
+export async function findRegistrationWithSession(
+  registrationId: number
+): Promise<(Registration & { session: TrainingSession }) | null> {
+  return prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: { session: true },
+  })
 }

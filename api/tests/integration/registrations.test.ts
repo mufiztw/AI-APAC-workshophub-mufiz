@@ -638,3 +638,91 @@ describe('GET /api/training-sessions/:id/registrations/:registrationId', () => {
     expect(response.body).toEqual({ error: 'Invalid registration ID' })
   })
 })
+
+describe('notifications (LATC-8)', () => {
+  let logSpy: jest.SpyInstance
+  let errorSpy: jest.SpyInstance
+
+  beforeEach(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    logSpy.mockRestore()
+    errorSpy.mockRestore()
+  })
+
+  // The notification is fire-and-forget, so the line may be logged just after the response.
+  async function loggedLines(predicate: (line: string) => boolean): Promise<string[]> {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const lines = (logSpy.mock.calls as unknown[][])
+        .map((call) => String(call[0]))
+        .filter(predicate)
+      if (lines.length > 0) return lines
+      await new Promise<void>((resolve) => setTimeout(resolve, 10))
+    }
+    return []
+  }
+
+  it('still returns 201 with the usual body when the notifier fails', async () => {
+    const id = await createSession(5)
+    logSpy.mockImplementation(() => {
+      throw new Error('console broke')
+    })
+
+    const response = await post(id, validBody)
+
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({
+      sessionId: id,
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+      registered: 1,
+      capacity: 5,
+    })
+    expect(await getRegistered(id)).toBe(1)
+  })
+
+  it('logs a promoted notification and returns the unchanged body when a cancel promotes', async () => {
+    const id = await createSession(1)
+    const holder = await post(id, validBody)
+    const waiting = await post(id, grace)
+    expect(waiting.status).toBe(202)
+
+    const response = await del(id, holder.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      status: 'cancelled',
+      promotedRegistrationId: waiting.body.id,
+      registered: 1,
+      capacity: 1,
+    })
+    const lines = await loggedLines((line) => line.includes('promoted'))
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('Grace Hopper')
+    expect(lines[0]).toContain('grace@example.com')
+    expect(lines[0]).toContain('LATC-2 test session')
+    expect(lines[0]).toContain('2030-01-01T09:00:00.000Z')
+  })
+
+  it('still returns the unchanged 200 body when the notifier fails during promotion', async () => {
+    const id = await createSession(1)
+    const holder = await post(id, validBody)
+    const waiting = await post(id, grace)
+    logSpy.mockImplementation(() => {
+      throw new Error('console broke')
+    })
+
+    const response = await del(id, holder.body.id)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      status: 'cancelled',
+      promotedRegistrationId: waiting.body.id,
+      registered: 1,
+      capacity: 1,
+    })
+  })
+})

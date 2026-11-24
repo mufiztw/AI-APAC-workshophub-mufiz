@@ -225,6 +225,7 @@ No secrets are required for the build workflow. Optional Slack or other override
 | `DATABASE_URL` | `file:../database/workshophub.sqlite` | `file:/app/api/database/workshophub.sqlite` (set in compose) |
 | `APP_PORT` | `3001` | `8080` (set in compose) |
 | `NODE_ENV` | `development` | `production` (set in compose) |
+| `SLACK_WEBHOOK_URL` | unset (optional) | Optional Slack incoming-webhook URL. When set, registration/promotion notifications are also posted to Slack. Treat as a secret; never commit it. |
 
 ## Technology Stack
 
