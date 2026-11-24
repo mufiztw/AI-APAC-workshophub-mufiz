@@ -12,6 +12,7 @@ import {
   listSessionRegistrations,
   RegistrationInput,
 } from '../repositories/registrationRepository'
+import { notifyRegistration } from './notificationService'
 import { onRegistrationPromoted } from './waitlistPromotion'
 
 export type RegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled'
@@ -80,6 +81,13 @@ export async function registerForSession(
         capacity: result.capacity,
       }
     case 'created':
+      notifyRegistration({
+        name: result.registration.name,
+        email: result.registration.email,
+        sessionTitle: result.sessionTitle,
+        sessionDate: result.sessionDate,
+        status: 'confirmed',
+      })
       return { ...result.registration, registered: result.registered, capacity: result.capacity }
   }
 }

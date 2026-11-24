@@ -1,12 +1,18 @@
 import { registerForSession } from '../../src/services/registrationService'
 import { createRegistration } from '../../src/repositories/registrationRepository'
+import { notifyRegistration } from '../../src/services/notificationService'
 import { SessionNotFoundError, ValidationError } from '../../src/errors'
 
 jest.mock('../../src/repositories/registrationRepository', () => ({
   createRegistration: jest.fn(),
 }))
 
+jest.mock('../../src/services/notificationService', () => ({
+  notifyRegistration: jest.fn(),
+}))
+
 const mockCreate = createRegistration as jest.Mock
+const mockNotify = notifyRegistration as jest.Mock
 
 const created = {
   registration: {
@@ -155,5 +161,59 @@ describe('registerForSession', () => {
       registerForSession(7, { name: '', email: 'ada@example.com' })
     ).rejects.toBeInstanceOf(ValidationError)
     expect(mockCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('registerForSession notification (LATC-8)', () => {
+  const sessionTitle = 'Intro to TDD'
+  const sessionDate = new Date('2026-12-01T09:00:00Z')
+
+  it('notifies once with the confirmed registration details and session info', async () => {
+    mockCreate.mockResolvedValue({ status: 'created', ...created, sessionTitle, sessionDate })
+
+    await registerForSession(7, { name: 'Ada Lovelace', email: 'ada@example.com' })
+
+    expect(mockNotify).toHaveBeenCalledTimes(1)
+    expect(mockNotify).toHaveBeenCalledWith({
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+      sessionTitle,
+      sessionDate,
+      status: 'confirmed',
+    })
+  })
+
+  it('returns the registration unchanged, without sessionTitle or sessionDate', async () => {
+    mockCreate.mockResolvedValue({ status: 'created', ...created, sessionTitle, sessionDate })
+
+    const result = await registerForSession(7, { name: 'Ada Lovelace', email: 'ada@example.com' })
+
+    expect(result).toEqual({ ...created.registration, registered: 4, capacity: 10 })
+    expect(result).not.toHaveProperty('sessionTitle')
+    expect(result).not.toHaveProperty('sessionDate')
+  })
+
+  it('does not notify when the registration is waitlisted', async () => {
+    mockCreate.mockResolvedValue({
+      status: 'waitlisted',
+      registration: { ...created.registration, id: 9, status: 'waitlisted' },
+      position: 1,
+      registered: 10,
+      capacity: 10,
+    })
+
+    await registerForSession(7, { name: 'Ada', email: 'ada@example.com' })
+
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  it('does not notify when the session is not found', async () => {
+    mockCreate.mockResolvedValue({ status: 'not_found' })
+
+    await expect(
+      registerForSession(999, { name: 'Ada', email: 'ada@example.com' })
+    ).rejects.toBeInstanceOf(SessionNotFoundError)
+
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 })
