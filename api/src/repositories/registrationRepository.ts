@@ -1,10 +1,22 @@
-import { Prisma, Registration, TrainingSession } from '@prisma/client'
+import { AuditLog, Prisma, Registration, TrainingSession } from '@prisma/client'
 import prisma from '../lib/prisma'
 
 // SQLite serialises writers, so concurrent registrations queue for the write lock.
 // Generous limits stop a burst of requests failing on Prisma's 2s/5s defaults.
 const TRANSACTION_MAX_WAIT_MS = 10_000
 const TRANSACTION_TIMEOUT_MS = 15_000
+
+// Called only after the status change is known to have taken effect, so rejected and
+// concurrently-lost attempts never leave an entry. Runs in the caller's transaction.
+async function recordTransition(
+  tx: Prisma.TransactionClient,
+  registrationId: number,
+  fromStatus: string | null,
+  toStatus: string,
+  reason: string
+): Promise<void> {
+  await tx.auditLog.create({ data: { registrationId, fromStatus, toStatus, reason } })
+}
 
 export interface RegistrationInput {
   name: string
@@ -63,6 +75,7 @@ async function claimSeatAndRegister(
     const registration = await tx.registration.create({
       data: { sessionId, name: input.name, email: input.email, status: 'waitlisted' },
     })
+    await recordTransition(tx, registration.id, null, 'waitlisted', 'waitlisted')
     // Position is derived from join order (id) rather than stored.
     const position = await tx.registration.count({
       where: { sessionId, status: 'waitlisted', id: { lte: registration.id } },
@@ -79,6 +92,7 @@ async function claimSeatAndRegister(
   const registration = await tx.registration.create({
     data: { sessionId, name: input.name, email: input.email, status: 'confirmed' },
   })
+  await recordTransition(tx, registration.id, null, 'confirmed', 'registered')
   const session = await tx.trainingSession.findUnique({
     where: { id: sessionId },
     select: { registered: true, capacity: true, title: true, date: true },
@@ -141,6 +155,7 @@ async function promoteFirstWaitlisted(
       data: { status: 'confirmed' },
     })
     if (promoted.count === 1) {
+      await recordTransition(tx, candidate.id, 'waitlisted', 'confirmed', 'promoted')
       return candidate.id
     }
   }
@@ -170,6 +185,7 @@ async function cancelAndReleaseSeat(
   if (updated.count === 0) {
     return { status: 'already_cancelled' }
   }
+  await recordTransition(tx, registrationId, registration.status, 'cancelled', 'cancelled')
 
   let promotedRegistrationId: number | null = null
   if (registration.status === 'confirmed') {
@@ -263,4 +279,26 @@ export async function findRegistrationWithSession(
     where: { id: registrationId },
     include: { session: true },
   })
+}
+
+export type RegistrationAuditLookupResult =
+  | { status: 'found'; entries: AuditLog[] }
+  | { status: 'not_found' }
+
+// Ordered by changedAt then id: id breaks ties between entries written in one transaction.
+export async function listRegistrationAudit(
+  sessionId: number,
+  registrationId: number
+): Promise<RegistrationAuditLookupResult> {
+  const registration = await prisma.registration.findFirst({
+    where: { id: registrationId, sessionId },
+  })
+  if (!registration) {
+    return { status: 'not_found' }
+  }
+  const entries = await prisma.auditLog.findMany({
+    where: { registrationId },
+    orderBy: [{ changedAt: 'asc' }, { id: 'asc' }],
+  })
+  return { status: 'found', entries }
 }

@@ -37,6 +37,9 @@ function get(id: number | string) {
 }
 
 afterAll(async () => {
+  await prisma.auditLog.deleteMany({
+    where: { registration: { sessionId: { in: createdSessionIds } } },
+  })
   await prisma.registration.deleteMany({ where: { sessionId: { in: createdSessionIds } } })
   await prisma.trainingSession.deleteMany({ where: { id: { in: createdSessionIds } } })
   await prisma.$disconnect()

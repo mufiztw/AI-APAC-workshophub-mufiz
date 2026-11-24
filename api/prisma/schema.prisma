@@ -39,9 +39,24 @@ model Registration {
   status    String   @default("confirmed")
   createdAt DateTime @default(now())
 
-  session TrainingSession @relation(fields: [sessionId], references: [id])
+  session   TrainingSession @relation(fields: [sessionId], references: [id])
+  auditLogs AuditLog[]
 
   @@index([sessionId])
   @@index([sessionId, status])
   @@map("registrations")
+}
+
+model AuditLog {
+  id             Int      @id @default(autoincrement())
+  registrationId Int
+  fromStatus     String?
+  toStatus       String
+  changedAt      DateTime @default(now())
+  reason         String?
+
+  registration Registration @relation(fields: [registrationId], references: [id])
+
+  @@index([registrationId])
+  @@map("audit_logs")
 }

@@ -10,6 +10,7 @@ import {
   cancelRegistration as cancelRegistrationInRepository,
   createRegistration,
   getRegistration as getRegistrationFromRepository,
+  listRegistrationAudit,
   listSessionRegistrations,
   RegistrationInput,
 } from '../repositories/registrationRepository'
@@ -196,4 +197,39 @@ export async function getSessionRegistrations(sessionId: number): Promise<Sessio
     else if (registration.status === 'waitlisted') roster.waitlisted.push(entry)
   }
   return roster
+}
+
+export interface AuditEntry {
+  id: number
+  registrationId: number
+  fromStatus: RegistrationStatus | null
+  toStatus: RegistrationStatus
+  changedAt: Date
+  reason: string | null
+}
+
+export async function getRegistrationAudit(
+  sessionId: number,
+  registrationId: number
+): Promise<AuditEntry[]> {
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    throw new ValidationError('session id must be a positive whole number')
+  }
+  if (!Number.isInteger(registrationId) || registrationId <= 0) {
+    throw new ValidationError('registration id must be a positive whole number')
+  }
+
+  const result = await listRegistrationAudit(sessionId, registrationId)
+  if (result.status === 'not_found') {
+    throw new RegistrationNotFoundError()
+  }
+
+  return result.entries.map((entry) => ({
+    id: entry.id,
+    registrationId: entry.registrationId,
+    fromStatus: entry.fromStatus as RegistrationStatus | null,
+    toStatus: entry.toStatus as RegistrationStatus,
+    changedAt: entry.changedAt,
+    reason: entry.reason,
+  }))
 }
